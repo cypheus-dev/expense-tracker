@@ -29,10 +29,23 @@
                         </a>
                     </li>
                     {% endif %}
+                    {% if current_user.is_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('manage_users') }}">
+                            <i class="bi bi-people"></i> Użytkownicy
+                        </a>
+                    </li>
+                    {% endif %}
                 </ul>
                 <div class="navbar-nav">
                     <span class="nav-item nav-link text-light">
-                        <i class="bi bi-person"></i> {{ current_user.username }}
+                        <i class="bi bi-person"></i> 
+                        {{ current_user.username }}
+                        {% if current_user.is_admin %}
+                        <span class="badge bg-danger">Admin</span>
+                        {% elif current_user.is_accountant %}
+                        <span class="badge bg-info">Księgowy</span>
+                        {% endif %}
                     </span>
                     <a class="nav-link" href="{{ url_for('logout') }}">
                         <i class="bi bi-box-arrow-right"></i> Wyloguj
