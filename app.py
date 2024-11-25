@@ -319,17 +319,17 @@ def reports():
     
     start_of_month = datetime.now().replace(day=1, hour=0, minute=0, second=0)
     
-    expenses_pln = Expense.query.filter(
-        Expense.date >= start_of_month,
-        Expense.currency == 'PLN'
-    )
-    expenses_eur = Expense.query.filter(
-        Expense.date >= start_of_month,
-        Expense.currency == 'EUR'
-    )
+    # Total amounts by currency
+    totals = db.session.query(
+        Expense.currency,
+        db.func.sum(Expense.amount).label('total')
+    ).filter(
+        Expense.date >= start_of_month
+    ).group_by(
+        Expense.currency
+    ).all()
     
-    total_amount_pln = expenses_pln.with_entities(db.func.sum(Expense.amount)).scalar() or 0
-    total_amount_eur = expenses_eur.with_entities(db.func.sum(Expense.amount)).scalar() or 0
+    total_by_currency = {t[0]: t[1] or 0 for t in totals}
     
     expense_count = Expense.query\
         .filter(Expense.date >= start_of_month).count()
@@ -337,42 +337,122 @@ def reports():
     pending_count = Expense.query\
         .filter_by(status='pending').count()
 
-    # Kategorie z podziałem na waluty
+    # Categories with currency split
     categories = db.session.query(
         Category.name,
-        db.func.sum(db.case([(Expense.currency == 'PLN', Expense.amount)])).label('sum_pln'),
-        db.func.sum(db.case([(Expense.currency == 'EUR', Expense.amount)])).label('sum_eur')
-    ).join(Expense)\
-     .group_by(Category.name)\
+        Expense.currency,
+        db.func.sum(Expense.amount).label('total')
+    ).join(Category)\
+     .filter(Expense.date >= start_of_month)\
+     .group_by(Category.name, Expense.currency)\
      .all()
 
-    # Timeline z podziałem na waluty
+    # Timeline with currency split
     timeline = db.session.query(
         db.func.date(Expense.date),
-        db.func.sum(db.case([(Expense.currency == 'PLN', Expense.amount)])).label('sum_pln'),
-        db.func.sum(db.case([(Expense.currency == 'EUR', Expense.amount)])).label('sum_eur')
-    ).group_by(db.func.date(Expense.date))\
-     .order_by(db.func.date(Expense.date))\
-     .all()
+        Expense.currency,
+        db.func.sum(Expense.amount).label('total')
+    ).filter(
+        Expense.date >= start_of_month
+    ).group_by(
+        db.func.date(Expense.date),
+        Expense.currency
+    ).order_by(
+        db.func.date(Expense.date)
+    ).all()
 
     return render_template('reports.html',
-                         total_amount_pln=total_amount_pln,
-                         total_amount_eur=total_amount_eur,
+                         total_by_currency=total_by_currency,
                          expense_count=expense_count,
                          pending_count=pending_count,
                          categories=categories,
                          timeline=timeline)
 
-@app.route('/config', methods=['GET'])
+@app.route('/config', methods=['GET', 'POST'])
 @login_required
 def config():
     if not current_user.is_admin:
         flash('Brak dostępu', 'danger')
         return redirect(url_for('index'))
     
+    if request.method == 'POST':
+        if 'add_user' in request.form:
+            username = request.form.get('username')
+            password = request.form.get('password')
+            role = request.form.get('role', 'user')
+            
+            if User.query.filter_by(username=username).first():
+                flash('Użytkownik o takiej nazwie już istnieje', 'danger')
+            else:
+                user = User(
+                    username=username,
+                    password_hash=generate_password_hash(password),
+                    role=role
+                )
+                db.session.add(user)
+                try:
+                    db.session.commit()
+                    flash('Użytkownik został dodany', 'success')
+                except Exception as e:
+                    db.session.rollback()
+                    flash('Wystąpił błąd podczas dodawania użytkownika', 'danger')
+    
     cards = PaymentCard.query.all()
     categories = Category.query.all()
-    return render_template('config.html', cards=cards, categories=categories)
+    users = User.query.all()
+    return render_template('config.html', 
+                         cards=cards, 
+                         categories=categories, 
+                         users=users)
+
+@app.route('/config', methods=['GET', 'POST'])
+@login_required
+def config():
+    # ... existing config route code ...
+
+@app.route('/update_user/<int:user_id>', methods=['POST'])
+@login_required
+def update_user(user_id):
+    if not current_user.is_admin:
+        return jsonify({'error': 'Brak uprawnień'}), 403
+    
+    if user_id == current_user.id:
+        return jsonify({'error': 'Nie można edytować własnego konta'}), 400
+        
+    user = User.query.get_or_404(user_id)
+    data = request.get_json()
+    
+    try:
+        if 'role' in data:
+            user.role = data['role']
+        if 'password' in data and data['password']:
+            user.password_hash = generate_password_hash(data['password'])
+            
+        db.session.commit()
+        return jsonify({'message': 'Zaktualizowano użytkownika'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if not current_user.is_admin:
+        return jsonify({'error': 'Brak uprawnień'}), 403
+    
+    if user_id == current_user.id:
+        return jsonify({'error': 'Nie można usunąć własnego konta'}), 400
+        
+    user = User.query.get_or_404(user_id)
+    
+    # Sprawdź czy użytkownik ma wydatki
+    if user.expenses:
+        return jsonify({'error': 'Nie można usunąć użytkownika, który ma wydatki'}), 400
+    
+    db.session.delete(user)
+    db.session.commit()
+    
+    return jsonify({'message': 'Użytkownik został usunięty'})
 
 @app.route('/config/card', methods=['POST'])
 @login_required
