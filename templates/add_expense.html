@@ -8,33 +8,61 @@
             </div>
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data" class="needs-validation" novalidate>
-                    <div class="mb-3">
-                        <label class="form-label">Kwota (PLN)</label>
-                        <div class="input-group">
-                            <input type="number" step="0.01" name="amount" 
-                                   class="form-control" required min="0.01">
-                            <span class="input-group-text">zł</span>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Kwota</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.01" name="amount" 
+                                           class="form-control" required min="0.01">
+                                    <select name="currency" class="form-select" style="max-width: 100px;" id="currencySelect">
+                                        <option value="PLN">PLN</option>
+                                        <option value="EUR">EUR</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Karta płatnicza</label>
+                                <select name="card_id" class="form-select" required onchange="updateCurrency(this)">
+                                    <option value="">Wybierz kartę...</option>
+                                    {% for card in cards %}
+                                    {% if card.is_active %}
+                                    <option value="{{ card.id }}" data-currency="{{ card.currency }}">
+                                        {{ card.name }} ({{ card.currency }})
+                                    </option>
+                                    {% endif %}
+                                    {% endfor %}
+                                </select>
+                            </div>
                         </div>
                     </div>
+
                     <div class="mb-3">
                         <label class="form-label">Kategoria</label>
                         <select name="category" class="form-select" required>
                             <option value="">Wybierz kategorię...</option>
                             {% for category in categories %}
-                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            <option value="{{ category.id }}" {% if category.is_default %}selected{% endif %}>
+                                {{ category.name }}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
+
                     <div class="mb-3">
                         <label class="form-label">Data</label>
                         <input type="date" name="date" class="form-control" 
                                required value="{{ today }}">
                     </div>
+
                     <div class="mb-3">
                         <label class="form-label">Opis</label>
                         <textarea name="description" class="form-control" 
                                   rows="3" required></textarea>
                     </div>
+
                     <div class="mb-3">
                         <label class="form-label">Faktura/Paragon</label>
                         <input type="file" name="receipt" class="form-control" 
@@ -43,6 +71,7 @@
                             Akceptowane formaty: PDF, JPG, PNG. Max rozmiar: 5MB
                         </div>
                     </div>
+
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-save"></i> Zapisz wydatek
@@ -58,6 +87,15 @@
 </div>
 
 <script>
+// Aktualizacja waluty na podstawie wybranej karty
+function updateCurrency(cardSelect) {
+    const selectedOption = cardSelect.options[cardSelect.selectedIndex];
+    const currency = selectedOption.dataset.currency;
+    if (currency) {
+        document.getElementById('currencySelect').value = currency;
+    }
+}
+
 // Walidacja formularza
 (function () {
     'use strict'
