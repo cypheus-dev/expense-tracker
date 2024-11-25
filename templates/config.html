@@ -1,0 +1,346 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row mb-4">
+    <!-- Karty płatnicze -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-credit-card"></i> Karty płatnicze
+                </h5>
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addCardModal">
+                    <i class="bi bi-plus-circle"></i> Dodaj kartę
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Nazwa</th>
+                                <th>Waluta</th>
+                                <th>Opis</th>
+                                <th>Status</th>
+                                <th>Akcje</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for card in cards %}
+                            <tr>
+                                <td>{{ card.name }}</td>
+                                <td>{{ card.currency }}</td>
+                                <td>{{ card.description }}</td>
+                                <td>
+                                    {% if card.is_active %}
+                                    <span class="badge bg-success">Aktywna</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Nieaktywna</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="editCard({{ card.id }}, '{{ card.name }}', '{{ card.currency }}', '{{ card.description }}', {{ card.is_active|tojson }})">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCard({{ card.id }})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kategorie -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-tags"></i> Kategorie wydatków
+                </h5>
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+                    <i class="bi bi-plus-circle"></i> Dodaj kategorię
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Nazwa</th>
+                                <th>Opis</th>
+                                <th>Domyślna</th>
+                                <th>Akcje</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for category in categories %}
+                            <tr>
+                                <td>{{ category.name }}</td>
+                                <td>{{ category.description }}</td>
+                                <td>
+                                    {% if category.is_default %}
+                                    <span class="badge bg-primary">Domyślna</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="editCategory({{ category.id }}, '{{ category.name }}', '{{ category.description }}', {{ category.is_default|tojson }})">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory({{ category.id }})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal dodawania karty -->
+<div class="modal fade" id="addCardModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('add_card') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Dodaj kartę płatniczą</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nazwa</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Waluta</label>
+                        <select name="currency" class="form-select" required>
+                            <option value="PLN">PLN</option>
+                            <option value="EUR">EUR</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Opis</label>
+                        <textarea name="description" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                    <button type="submit" class="btn btn-primary">Dodaj</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal edycji karty -->
+<div class="modal fade" id="editCardModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edytuj kartę płatniczą</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editCardId">
+                <div class="mb-3">
+                    <label class="form-label">Nazwa</label>
+                    <input type="text" id="editCardName" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Waluta</label>
+                    <select id="editCardCurrency" class="form-select" required>
+                        <option value="PLN">PLN</option>
+                        <option value="EUR">EUR</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Opis</label>
+                    <textarea id="editCardDescription" class="form-control" rows="2"></textarea>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="editCardActive">
+                    <label class="form-check-label">Aktywna</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                <button type="button" class="btn btn-primary" onclick="updateCard()">Zapisz zmiany</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal dodawania kategorii -->
+<div class="modal fade" id="addCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('add_category') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Dodaj kategorię</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nazwa</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Opis</label>
+                        <textarea name="description" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="isDefault" name="is_default">
+                        <label class="form-check-label">Kategoria domyślna</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                    <button type="submit" class="btn btn-primary">Dodaj</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal edycji kategorii -->
+<div class="modal fade" id="editCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edytuj kategorię</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editCategoryId">
+                <div class="mb-3">
+                    <label class="form-label">Nazwa</label>
+                    <input type="text" id="editCategoryName" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Opis</label>
+                    <textarea id="editCategoryDescription" class="form-control" rows="2"></textarea>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="editCategoryDefault">
+                    <label class="form-check-label">Kategoria domyślna</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                <button type="button" class="btn btn-primary" onclick="updateCategory()">Zapisz zmiany</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Funkcje dla kart płatniczych
+function editCard(id, name, currency, description, isActive) {
+    document.getElementById('editCardId').value = id;
+    document.getElementById('editCardName').value = name;
+    document.getElementById('editCardCurrency').value = currency;
+    document.getElementById('editCardDescription').value = description;
+    document.getElementById('editCardActive').checked = isActive;
+    new bootstrap.Modal(document.getElementById('editCardModal')).show();
+}
+
+function updateCard() {
+    const id = document.getElementById('editCardId').value;
+    const data = {
+        name: document.getElementById('editCardName').value,
+        currency: document.getElementById('editCardCurrency').value,
+        description: document.getElementById('editCardDescription').value,
+        is_active: document.getElementById('editCardActive').checked
+    };
+
+    fetch(`/config/card/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message) {
+            location.reload();
+        } else {
+            alert(data.error || 'Wystąpił błąd');
+        }
+    });
+}
+
+function deleteCard(id) {
+    if (confirm('Czy na pewno chcesz usunąć tę kartę?')) {
+        fetch(`/config/card/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                location.reload();
+            } else {
+                alert(data.error || 'Wystąpił błąd');
+            }
+        });
+    }
+}
+
+// Funkcje dla kategorii
+function editCategory(id, name, description, isDefault) {
+    document.getElementById('editCategoryId').value = id;
+    document.getElementById('editCategoryName').value = name;
+    document.getElementById('editCategoryDescription').value = description;
+    document.getElementById('editCategoryDefault').checked = isDefault;
+    new bootstrap.Modal(document.getElementById('editCategoryModal')).show();
+}
+
+function updateCategory() {
+    const id = document.getElementById('editCategoryId').value;
+    const data = {
+        name: document.getElementById('editCategoryName').value,
+        description: document.getElementById('editCategoryDescription').value,
+        is_default: document.getElementById('editCategoryDefault').checked
+    };
+
+    fetch(`/config/category/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message) {
+            location.reload();
+        } else {
+            alert(data.error || 'Wystąpił błąd');
+        }
+    });
+}
+
+function deleteCategory(id) {
+    if (confirm('Czy na pewno chcesz usunąć tę kategorię?')) {
+        fetch(`/config/category/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                location.reload();
+            } else {
+                alert(data.error || 'Wystąpił błąd');
+            }
+        });
+    }
+}
+</script>
+{% endblock %}
