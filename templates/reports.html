@@ -1,18 +1,29 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="row mb-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">
-                    <i class="bi bi-cash"></i> Suma wydatków
+                    <i class="bi bi-cash"></i> Suma PLN
                 </h5>
-                <h2 class="text-primary">{{ "%.2f" % total_amount }} zł</h2>
+                <h2 class="text-primary">{{ "%.2f" % total_by_currency.get('PLN', 0) }} zł</h2>
                 <p class="text-muted">W tym miesiącu</p>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-cash"></i> Suma EUR
+                </h5>
+                <h2 class="text-info">{{ "%.2f" % total_by_currency.get('EUR', 0) }} €</h2>
+                <p class="text-muted">W tym miesiącu</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">
@@ -23,7 +34,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">
@@ -61,26 +72,33 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Wykres kategorii
+    // Prepare data for category chart
     const categoryData = {
-        labels: {{ categories|map(attribute='0')|list|tojson }},
-        datasets: [{
-            data: {{ categories|map(attribute='1')|list|tojson }},
-            backgroundColor: [
-                '#FF6384',
-                '#36A2EB',
-                '#FFCE56',
-                '#4BC0C0',
-                '#9966FF'
-            ]
-        }]
+        labels: {{ categories|map(attribute=0)|list|tojson }},
+        datasets: [
+            {
+                label: 'PLN',
+                data: {{ categories|selectattr(1, 'equalto', 'PLN')|map(attribute=2)|list|tojson }},
+                backgroundColor: '#FF6384'
+            },
+            {
+                label: 'EUR',
+                data: {{ categories|selectattr(1, 'equalto', 'EUR')|map(attribute=2)|list|tojson }},
+                backgroundColor: '#36A2EB'
+            }
+        ]
     };
 
     new Chart(document.getElementById('categoryChart'), {
-        type: 'pie',
+        type: 'bar',
         data: categoryData,
         options: {
             responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            },
             plugins: {
                 legend: {
                     position: 'bottom'
@@ -89,15 +107,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Wykres w czasie
+    // Prepare data for timeline chart
     const timelineData = {
-        labels: {{ timeline|map(attribute='0')|list|tojson }},
-        datasets: [{
-            label: 'Wydatki',
-            data: {{ timeline|map(attribute='1')|list|tojson }},
-            borderColor: '#36A2EB',
-            tension: 0.1
-        }]
+        labels: {{ timeline|map(attribute=0)|list|tojson }},
+        datasets: [
+            {
+                label: 'PLN',
+                data: {{ timeline|selectattr(1, 'equalto', 'PLN')|map(attribute=2)|list|tojson }},
+                borderColor: '#FF6384',
+                tension: 0.1
+            },
+            {
+                label: 'EUR',
+                data: {{ timeline|selectattr(1, 'equalto', 'EUR')|map(attribute=2)|list|tojson }},
+                borderColor: '#36A2EB',
+                tension: 0.1
+            }
+        ]
     };
 
     new Chart(document.getElementById('timelineChart'), {
@@ -108,6 +134,11 @@ document.addEventListener('DOMContentLoaded', function() {
             scales: {
                 y: {
                     beginAtZero: true
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom'
                 }
             }
         }
