@@ -60,6 +60,41 @@ class Expense(db.Model):
             'rejected': 'danger'
         }.get(self.status, 'secondary')
 
+def init_app(app):
+    with app.app_context():
+        # Tworzenie tabel
+        db.create_all()
+        
+        # Tworzenie domyślnego użytkownika-księgowego, jeśli nie istnieje
+        if not User.query.filter_by(username='accountant').first():
+            admin = User(
+                username='accountant',
+                password_hash=generate_password_hash(os.environ.get('INITIAL_ADMIN_PASSWORD', 'Admin123!')),
+                is_accountant=True
+            )
+            db.session.add(admin)
+            
+        # Dodawanie domyślnych kategorii
+        default_categories = [
+            ("transport", "Wydatki na transport, paliwo, bilety"),
+            ("zakwaterowanie", "Hotele, noclegi"),
+            ("wyżywienie", "Posiłki, catering"),
+            ("materiały", "Materiały biurowe"),
+            ("inne", "Pozostałe wydatki")
+        ]
+        
+        for name, description in default_categories:
+            if not Category.query.filter_by(name=name).first():
+                category = Category(name=name, description=description)
+                db.session.add(category)
+        
+        try:
+            db.session.commit()
+            print("Initialization completed successfully!")
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error during initialization: {e}")
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -285,25 +320,8 @@ def export_expenses():
         download_name=f'wydatki_{datetime.now().strftime("%Y%m%d")}.xlsx'
     )
 
-@app.cli.command("init-categories")
-def init_categories():
-    default_categories = [
-        ("transport", "Wydatki na transport, paliwo, bilety"),
-        ("zakwaterowanie", "Hotele, noclegi"),
-        ("wyżywienie", "Posiłki, catering"),
-        ("materiały", "Materiały biurowe"),
-        ("inne", "Pozostałe wydatki")
-    ]
-    
-    for name, description in default_categories:
-        if not Category.query.filter_by(name=name).first():
-            category = Category(name=name, description=description)
-            db.session.add(category)
-    
-    db.session.commit()
-    print("Kategorie zostały zainicjalizowane!")
+# Inicjalizacja przy starcie
+init_app(app)
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
