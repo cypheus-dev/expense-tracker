@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-pencil"></i> Edytuj wydatek</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data" class="needs-validation" novalidate>
+                    <div class="mb-3">
+                        <label class="form-label">Kwota (PLN)</label>
+                        <div class="input-group">
+                            <input type="number" step="0.01" name="amount" 
+                                   class="form-control" required min="0.01"
+                                   value="{{ expense.amount }}">
+                            <span class="input-group-text">zł</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Kategoria</label>
+                        <select name="category" class="form-select" required>
+                            <option value="">Wybierz kategorię...</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}" 
+                                    {% if category.id == expense.category_id %}selected{% endif %}>
+                                {{ category.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Data</label>
+                        <input type="date" name="date" class="form-control" 
+                               required value="{{ expense.date.strftime('%Y-%m-%d') }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Opis</label>
+                        <textarea name="description" class="form-control" 
+                                  rows="3" required>{{ expense.description }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Faktura/Paragon</label>
+                        {% if expense.receipt_filename %}
+                        <div class="mb-2">
+                            <span class="text-muted">Obecny plik: </span>
+                            <a href="{{ url_for('download_receipt', expense_id=expense.id) }}">
+                                {{ expense.receipt_filename }}
+                            </a>
+                        </div>
+                        {% endif %}
+                        <input type="file" name="receipt" class="form-control" 
+                               accept=".pdf,.jpg,.jpeg,.png">
+                        <div class="form-text">
+                            Akceptowane formaty: PDF, JPG, PNG. Max rozmiar: 5MB.
+                            {% if expense.receipt_filename %}
+                            Zostaw puste, aby zachować obecny plik.
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Zapisz zmiany
+                        </button>
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Anuluj
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict'
+    var forms = document.querySelectorAll('.needs-validation')
+    Array.prototype.slice.call(forms)
+        .forEach(function (form) {
+            form.addEventListener('submit', function (event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault()
+                    event.stopPropagation()
+                }
+                form.classList.add('was-validated')
+            }, false)
+        })
+})()
+</script>
+{% endblock %}
