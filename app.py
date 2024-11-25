@@ -4,8 +4,19 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from io import BytesIO
+from enum import Enum
 import xlsxwriter
 import os
+import locale
+
+# Ustawienie locale dla polskich nazw miesięcy
+try:
+    locale.setlocale(locale.LC_TIME, 'pl_PL.UTF-8')
+except:
+    try:
+        locale.setlocale(locale.LC_TIME, 'Polish_Poland.1250')
+    except:
+        pass
 
 app = Flask(__name__)
 
@@ -26,7 +37,22 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Model użytkownika
+class Currency(Enum):
+    PLN = "PLN"
+    EUR = "EUR"
+    
+    @classmethod
+    def choices(cls):
+        return [(currency.value, currency.value) for currency in cls]
+
+class PaymentCard(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    currency = db.Column(db.String(3), nullable=False, default='PLN')
+    description = db.Column(db.String(200))
+    is_active = db.Column(db.Boolean, default=True)
+    expenses = db.relationship('Expense', backref='card', lazy=True)
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -42,27 +68,21 @@ class User(UserMixin, db.Model):
     def is_accountant(self):
         return self.role == 'admin' or self.role == 'accountant'
 
-    def has_role(self, role):
-        if role == 'admin':
-            return self.is_admin
-        elif role == 'accountant':
-            return self.is_accountant
-        return True
-
-# Model kategorii
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
     description = db.Column(db.String(200))
+    is_default = db.Column(db.Boolean, default=False)
     expenses = db.relationship('Expense', backref='category', lazy=True)
 
-# Model wydatku
 class Expense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     amount = db.Column(db.Float, nullable=False)
+    currency = db.Column(db.String(3), nullable=False, default='PLN')
     description = db.Column(db.String(200))
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'))
+    card_id = db.Column(db.Integer, db.ForeignKey('payment_card.id'))
     receipt_data = db.Column(db.LargeBinary)
     receipt_filename = db.Column(db.String(200))
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -76,6 +96,35 @@ class Expense(db.Model):
             'rejected': 'danger'
         }.get(self.status, 'secondary')
 
+# Template filters
+@app.template_filter('month_name')
+def month_name_filter(date_str):
+    try:
+        date = datetime.strptime(date_str, '%Y-%m')
+        return date.strftime('%B %Y').capitalize()
+    except:
+        return date_str
+
+@app.template_filter('sum_by_currency')
+def sum_by_currency(expenses, currency):
+    return sum(expense.amount for expense in expenses if expense.currency == currency)
+
+@app.template_filter('format_currency')
+def format_currency(amount, currency):
+    if currency == 'PLN':
+        return f"{amount:.2f} zł"
+    elif currency == 'EUR':
+        return f"{amount:.2f} €"
+    return f"{amount:.2f}"
+
+@app.template_filter('datetime')
+def datetime_filter(value, format='%Y-%m-%d'):
+    if isinstance(value, str):
+        try:
+            value = datetime.strptime(value, format)
+        except:
+            return value
+    return value
 def init_app(app):
     with app.app_context():
         # Tworzenie tabel
@@ -90,7 +139,7 @@ def init_app(app):
             )
             db.session.add(admin)
         
-        # Tworzenie domyślnego księgowego jeśli nie istnieje
+        # Tworzenie domyślnego księgowego
         if not User.query.filter_by(role='accountant').first():
             accountant = User(
                 username='accountant',
@@ -101,17 +150,36 @@ def init_app(app):
             
         # Dodawanie domyślnych kategorii
         default_categories = [
-            ("transport", "Wydatki na transport, paliwo, bilety"),
-            ("zakwaterowanie", "Hotele, noclegi"),
-            ("wyżywienie", "Posiłki, catering"),
-            ("materiały", "Materiały biurowe"),
-            ("inne", "Pozostałe wydatki")
+            ("transport", "Wydatki na transport, paliwo, bilety", True),
+            ("zakwaterowanie", "Hotele, noclegi", False),
+            ("wyżywienie", "Posiłki, catering", False),
+            ("materiały", "Materiały biurowe", False),
+            ("inne", "Pozostałe wydatki", False)
         ]
         
-        for name, description in default_categories:
+        for name, description, is_default in default_categories:
             if not Category.query.filter_by(name=name).first():
-                category = Category(name=name, description=description)
+                category = Category(
+                    name=name, 
+                    description=description,
+                    is_default=is_default
+                )
                 db.session.add(category)
+
+        # Dodawanie domyślnych kart
+        default_cards = [
+            ("Karta PLN", "PLN", "Karta złotówkowa"),
+            ("Karta EUR", "EUR", "Karta euro")
+        ]
+
+        for name, currency, description in default_cards:
+            if not PaymentCard.query.filter_by(name=name).first():
+                card = PaymentCard(
+                    name=name,
+                    currency=currency,
+                    description=description
+                )
+                db.session.add(card)
         
         try:
             db.session.commit()
@@ -128,14 +196,23 @@ def load_user(user_id):
 @login_required
 def index():
     page = request.args.get('page', 1, type=int)
+    per_page = 50  # Zwiększamy ilość wydatków na stronę ze względu na grupowanie
+    
     if current_user.is_accountant:
-        expenses = Expense.query.order_by(Expense.date.desc())\
-            .paginate(page=page, per_page=20, error_out=False)
+        query = Expense.query
     else:
-        expenses = Expense.query.filter_by(user_id=current_user.id)\
-            .order_by(Expense.date.desc())\
-            .paginate(page=page, per_page=20, error_out=False)
-    return render_template('index.html', expenses=expenses)
+        query = Expense.query.filter_by(user_id=current_user.id)
+    
+    # Sortowanie po dacie malejąco
+    query = query.order_by(Expense.date.desc())
+    
+    # Paginacja
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    expenses = pagination.items
+    
+    return render_template('index.html', 
+                         expenses=expenses,
+                         pagination=pagination)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -156,14 +233,17 @@ def logout():
 @app.route('/add_expense', methods=['GET', 'POST'])
 @login_required
 def add_expense():
+    cards = PaymentCard.query.filter_by(is_active=True).all()
     categories = Category.query.all()
     if request.method == 'POST':
         try:
             expense = Expense(
                 date=datetime.strptime(request.form['date'], '%Y-%m-%d'),
                 amount=float(request.form['amount']),
+                currency=request.form['currency'],
                 description=request.form['description'],
                 category_id=int(request.form['category']),
+                card_id=int(request.form['card_id']),
                 user_id=current_user.id
             )
             
@@ -188,6 +268,7 @@ def add_expense():
             
     return render_template('add_expense.html', 
                          categories=categories,
+                         cards=cards,
                          today=datetime.now().strftime('%Y-%m-%d'))
 
 @app.route('/edit_expense/<int:expense_id>', methods=['GET', 'POST'])
@@ -199,14 +280,17 @@ def edit_expense(expense_id):
         flash('Brak dostępu', 'danger')
         return redirect(url_for('index'))
 
+    cards = PaymentCard.query.filter_by(is_active=True).all()
     categories = Category.query.all()
     
     if request.method == 'POST':
         try:
             expense.date = datetime.strptime(request.form['date'], '%Y-%m-%d')
             expense.amount = float(request.form['amount'])
+            expense.currency = request.form['currency']
             expense.description = request.form['description']
             expense.category_id = int(request.form['category'])
+            expense.card_id = int(request.form['card_id'])
             
             if 'receipt' in request.files:
                 file = request.files['receipt']
@@ -223,21 +307,8 @@ def edit_expense(expense_id):
     
     return render_template('edit_expense.html', 
                          expense=expense,
-                         categories=categories)
-
-@app.route('/download_receipt/<int:expense_id>')
-@login_required
-def download_receipt(expense_id):
-    expense = Expense.query.get_or_404(expense_id)
-    if current_user.is_accountant or expense.user_id == current_user.id:
-        if expense.receipt_data:
-            return send_file(
-                BytesIO(expense.receipt_data),
-                download_name=expense.receipt_filename,
-                as_attachment=True
-            )
-    flash('Brak dostępu lub brak pliku', 'danger')
-    return redirect(url_for('index'))
+                         categories=categories,
+                         cards=cards)
 
 @app.route('/reports')
 @login_required
@@ -248,8 +319,17 @@ def reports():
     
     start_of_month = datetime.now().replace(day=1, hour=0, minute=0, second=0)
     
-    total_amount = db.session.query(db.func.sum(Expense.amount))\
-        .filter(Expense.date >= start_of_month).scalar() or 0
+    expenses_pln = Expense.query.filter(
+        Expense.date >= start_of_month,
+        Expense.currency == 'PLN'
+    )
+    expenses_eur = Expense.query.filter(
+        Expense.date >= start_of_month,
+        Expense.currency == 'EUR'
+    )
+    
+    total_amount_pln = expenses_pln.with_entities(db.func.sum(Expense.amount)).scalar() or 0
+    total_amount_eur = expenses_eur.with_entities(db.func.sum(Expense.amount)).scalar() or 0
     
     expense_count = Expense.query\
         .filter(Expense.date >= start_of_month).count()
@@ -257,101 +337,152 @@ def reports():
     pending_count = Expense.query\
         .filter_by(status='pending').count()
 
+    # Kategorie z podziałem na waluty
     categories = db.session.query(
         Category.name,
-        db.func.sum(Expense.amount)
+        db.func.sum(db.case([(Expense.currency == 'PLN', Expense.amount)])).label('sum_pln'),
+        db.func.sum(db.case([(Expense.currency == 'EUR', Expense.amount)])).label('sum_eur')
     ).join(Expense)\
      .group_by(Category.name)\
      .all()
 
+    # Timeline z podziałem na waluty
     timeline = db.session.query(
         db.func.date(Expense.date),
-        db.func.sum(Expense.amount)
+        db.func.sum(db.case([(Expense.currency == 'PLN', Expense.amount)])).label('sum_pln'),
+        db.func.sum(db.case([(Expense.currency == 'EUR', Expense.amount)])).label('sum_eur')
     ).group_by(db.func.date(Expense.date))\
      .order_by(db.func.date(Expense.date))\
      .all()
 
     return render_template('reports.html',
-                         total_amount=total_amount,
+                         total_amount_pln=total_amount_pln,
+                         total_amount_eur=total_amount_eur,
                          expense_count=expense_count,
                          pending_count=pending_count,
                          categories=categories,
                          timeline=timeline)
 
-@app.route('/manage_users', methods=['GET', 'POST'])
+@app.route('/config', methods=['GET'])
 @login_required
-def manage_users():
+def config():
     if not current_user.is_admin:
         flash('Brak dostępu', 'danger')
         return redirect(url_for('index'))
     
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        role = request.form.get('role', 'user')
-        
-        if User.query.filter_by(username=username).first():
-            flash('Użytkownik o takiej nazwie już istnieje', 'danger')
-        else:
-            user = User(
-                username=username,
-                password_hash=generate_password_hash(password),
-                role=role
-            )
-            db.session.add(user)
-            try:
-                db.session.commit()
-                flash('Użytkownik został dodany', 'success')
-            except Exception as e:
-                db.session.rollback()
-                flash('Wystąpił błąd podczas dodawania użytkownika', 'danger')
-    
-    users = User.query.all()
-    return render_template('manage_users.html', users=users)
+    cards = PaymentCard.query.all()
+    categories = Category.query.all()
+    return render_template('config.html', cards=cards, categories=categories)
 
-@app.route('/update_user/<int:user_id>', methods=['POST'])
+@app.route('/config/card', methods=['POST'])
 @login_required
-def update_user(user_id):
-    user = User.query.get_or_404(user_id)
-    data = request.get_json()
+def add_card():
+    if not current_user.is_admin:
+        return jsonify({'error': 'Brak uprawnień'}), 403
+    
+    name = request.form.get('name')
+    currency = request.form.get('currency')
+    description = request.form.get('description')
+    
+    card = PaymentCard(
+        name=name,
+        currency=currency,
+        description=description
+    )
+    db.session.add(card)
     
     try:
-        # Tylko admin może zmieniać role
-        if current_user.is_admin:
-            if 'role' in data:
-                user.role = data['role']
-                
-        # Admin może zmieniać hasła wszystkich
-        # Użytkownik może zmienić tylko swoje hasło
-        if 'password' in data and data['password']:
-            if current_user.is_admin or current_user.id == user_id:
-                user.password_hash = generate_password_hash(data['password'])
-            else:
-                return jsonify({'error': 'Brak uprawnień do zmiany hasła'}), 403
-            
         db.session.commit()
-        return jsonify({
-            'message': 'Dane użytkownika zostały zaktualizowane',
-            'role': user.role
-        })
+        flash('Karta została dodana', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Wystąpił błąd podczas dodawania karty', 'danger')
+    
+    return redirect(url_for('config'))
+
+@app.route('/config/card/<int:card_id>', methods=['PUT', 'DELETE'])
+@login_required
+def manage_card(card_id):
+    if not current_user.is_admin:
+        return jsonify({'error': 'Brak uprawnień'}), 403
+    
+    card = PaymentCard.query.get_or_404(card_id)
+    
+    if request.method == 'DELETE':
+        if Expense.query.filter_by(card_id=card_id).first():
+            return jsonify({'error': 'Nie można usunąć karty, która jest używana'}), 400
+        db.session.delete(card)
+    else:  # PUT
+        data = request.get_json()
+        card.name = data.get('name', card.name)
+        card.currency = data.get('currency', card.currency)
+        card.description = data.get('description', card.description)
+        card.is_active = data.get('is_active', card.is_active)
+    
+    try:
+        db.session.commit()
+        return jsonify({'message': 'Operacja zakończona sukcesem'})
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 400
 
-@app.route('/delete_user/<int:user_id>', methods=['POST'])
+@app.route('/config/category', methods=['POST'])
 @login_required
-def delete_user(user_id):
+def add_category():
     if not current_user.is_admin:
         return jsonify({'error': 'Brak uprawnień'}), 403
     
-    if current_user.id == user_id:
-        return jsonify({'error': 'Nie można usunąć własnego konta'}), 400
-        
-    user = User.query.get_or_404(user_id)
-    db.session.delete(user)
-    db.session.commit()
+    name = request.form.get('name')
+    description = request.form.get('description')
+    is_default = 'is_default' in request.form
     
-    return jsonify({'message': 'Użytkownik został usunięty'})
+    if is_default:
+        # Usuń poprzednią domyślną kategorię
+        Category.query.filter_by(is_default=True).update({'is_default': False})
+    
+    category = Category(
+        name=name,
+        description=description,
+        is_default=is_default
+    )
+    db.session.add(category)
+    
+    try:
+        db.session.commit()
+        flash('Kategoria została dodana', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Wystąpił błąd podczas dodawania kategorii', 'danger')
+    
+    return redirect(url_for('config'))
+
+@app.route('/config/category/<int:category_id>', methods=['PUT', 'DELETE'])
+@login_required
+def manage_category(category_id):
+    if not current_user.is_admin:
+        return jsonify({'error': 'Brak uprawnień'}), 403
+    
+    category = Category.query.get_or_404(category_id)
+    
+    if request.method == 'DELETE':
+        if Expense.query.filter_by(category_id=category_id).first():
+            return jsonify({'error': 'Nie można usunąć kategorii, która jest używana'}), 400
+        db.session.delete(category)
+    else:  # PUT
+        data = request.get_json()
+        if data.get('is_default'):
+            # Usuń poprzednią domyślną kategorię
+            Category.query.filter_by(is_default=True).update({'is_default': False})
+        category.name = data.get('name', category.name)
+        category.description = data.get('description', category.description)
+        category.is_default = data.get('is_default', category.is_default)
+    
+    try:
+        db.session.commit()
+        return jsonify({'message': 'Operacja zakończona sukcesem'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
 
 @app.route('/approve_expense/<int:expense_id>', methods=['POST'])
 @login_required
@@ -368,7 +499,6 @@ def approve_expense(expense_id):
         'status': expense.status,
         'status_color': expense.status_color
     })
-
 @app.route('/export_expenses')
 @login_required
 def export_expenses():
@@ -380,6 +510,7 @@ def export_expenses():
     workbook = xlsxwriter.Workbook(output)
     worksheet = workbook.add_worksheet()
 
+    # Style
     header_format = workbook.add_format({
         'bold': True,
         'bg_color': '#f0f0f0',
@@ -387,28 +518,55 @@ def export_expenses():
     })
     
     date_format = workbook.add_format({'num_format': 'yyyy-mm-dd'})
-    amount_format = workbook.add_format({'num_format': '#,##0.00 zł'})
+    amount_format_pln = workbook.add_format({'num_format': '#,##0.00 "zł"'})
+    amount_format_eur = workbook.add_format({'num_format': '#,##0.00 "€"'})
 
-    headers = ['Data', 'Użytkownik', 'Kategoria', 'Opis', 'Kwota', 'Status']
+    # Nagłówki
+    headers = ['Data', 'Użytkownik', 'Karta', 'Kategoria', 'Opis', 'Kwota', 'Waluta', 'Status']
     for col, header in enumerate(headers):
         worksheet.write(0, col, header, header_format)
 
+    # Dane
     expenses = Expense.query.order_by(Expense.date.desc()).all()
     for row, expense in enumerate(expenses, start=1):
         worksheet.write_datetime(row, 0, expense.date, date_format)
         worksheet.write(row, 1, expense.user.username)
-        worksheet.write(row, 2, expense.category.name if expense.category else '')
-        worksheet.write(row, 3, expense.description)
-        worksheet.write_number(row, 4, expense.amount, amount_format)
-        worksheet.write(row, 5, expense.status)
+        worksheet.write(row, 2, expense.card.name if expense.card else '')
+        worksheet.write(row, 3, expense.category.name if expense.category else '')
+        worksheet.write(row, 4, expense.description)
+        if expense.currency == 'PLN':
+            worksheet.write_number(row, 5, expense.amount, amount_format_pln)
+        else:
+            worksheet.write_number(row, 5, expense.amount, amount_format_eur)
+        worksheet.write(row, 6, expense.currency)
+        worksheet.write(row, 7, expense.status)
 
+    # Autofiltr i szerokość kolumn
     worksheet.autofilter(0, 0, len(expenses), len(headers)-1)
-    worksheet.set_column(0, 0, 12)
-    worksheet.set_column(1, 1, 15)
-    worksheet.set_column(2, 2, 15)
-    worksheet.set_column(3, 3, 40)
-    worksheet.set_column(4, 4, 12)
-    worksheet.set_column(5, 5, 10)
+    worksheet.set_column(0, 0, 12)  # Data
+    worksheet.set_column(1, 1, 15)  # Użytkownik
+    worksheet.set_column(2, 2, 15)  # Karta
+    worksheet.set_column(3, 3, 15)  # Kategoria
+    worksheet.set_column(4, 4, 40)  # Opis
+    worksheet.set_column(5, 5, 12)  # Kwota
+    worksheet.set_column(6, 6, 8)   # Waluta
+    worksheet.set_column(7, 7, 10)  # Status
+
+    # Podsumowanie
+    summary_row = len(expenses) + 2
+    worksheet.write(summary_row, 0, "Podsumowanie", header_format)
+    
+    # Suma PLN
+    worksheet.write(summary_row, 1, "Suma PLN:")
+    worksheet.write_formula(summary_row, 2, 
+        f'=SUMIFS(F2:F{summary_row},G2:G{summary_row},"PLN")', 
+        amount_format_pln)
+    
+    # Suma EUR
+    worksheet.write(summary_row + 1, 1, "Suma EUR:")
+    worksheet.write_formula(summary_row + 1, 2, 
+        f'=SUMIFS(F2:F{summary_row},G2:G{summary_row},"EUR")', 
+        amount_format_eur)
 
     workbook.close()
     output.seek(0)
@@ -420,6 +578,7 @@ def export_expenses():
         download_name=f'wydatki_{datetime.now().strftime("%Y%m%d")}.xlsx'
     )
 
+# Inicjalizacja przy starcie
 with app.app_context():
     init_app(app)
 
