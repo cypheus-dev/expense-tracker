@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-cash"></i> Suma wydatków
+                </h5>
+                <h2 class="text-primary">{{ "%.2f" % total_amount }} zł</h2>
+                <p class="text-muted">W tym miesiącu</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-receipt"></i> Liczba wydatków
+                </h5>
+                <h2 class="text-success">{{ expense_count }}</h2>
+                <p class="text-muted">W tym miesiącu</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-clock"></i> Do zatwierdzenia
+                </h5>
+                <h2 class="text-warning">{{ pending_count }}</h2>
+                <p class="text-muted">Oczekujące wydatki</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Wydatki według kategorii</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="categoryChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Wydatki w czasie</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="timelineChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Wykres kategorii
+    const categoryData = {
+        labels: {{ categories|map(attribute='0')|list|tojson }},
+        datasets: [{
+            data: {{ categories|map(attribute='1')|list|tojson }},
+            backgroundColor: [
+                '#FF6384',
+                '#36A2EB',
+                '#FFCE56',
+                '#4BC0C0',
+                '#9966FF'
+            ]
+        }]
+    };
+
+    new Chart(document.getElementById('categoryChart'), {
+        type: 'pie',
+        data: categoryData,
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+
+    // Wykres w czasie
+    const timelineData = {
+        labels: {{ timeline|map(attribute='0')|list|tojson }},
+        datasets: [{
+            label: 'Wydatki',
+            data: {{ timeline|map(attribute='1')|list|tojson }},
+            borderColor: '#36A2EB',
+            tension: 0.1
+        }]
+    };
+
+    new Chart(document.getElementById('timelineChart'), {
+        type: 'line',
+        data: timelineData,
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
