@@ -14,13 +14,14 @@ database_url = os.environ.get('DATABASE_URL')
 if database_url and database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
-app.config.update(
-    SECRET_KEY=os.environ.get('SECRET_KEY', 'dev-key'),
-    SQLALCHEMY_DATABASE_URI=database_url or 'sqlite:///expenses.db',
-    SQLALCHEMY_TRACK_MODIFICATIONS=False
-)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key')
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///expenses.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db = SQLAlchemy(app)
+# Inicjalizacja rozszerzeń
+db = SQLAlchemy()
+db.init_app(app)
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -320,8 +321,8 @@ def export_expenses():
         download_name=f'wydatki_{datetime.now().strftime("%Y%m%d")}.xlsx'
     )
 
-# Inicjalizacja przy starcie
-init_app(app)
+with app.app_context():
+    init_app(app)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
