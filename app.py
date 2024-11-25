@@ -31,8 +31,23 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
-    is_accountant = db.Column(db.Boolean, default=False)
+    role = db.Column(db.String(20), default='user')  # 'admin', 'accountant', 'user'
     expenses = db.relationship('Expense', backref='user', lazy=True)
+
+    @property
+    def is_admin(self):
+        return self.role == 'admin'
+
+    @property
+    def is_accountant(self):
+        return self.role == 'admin' or self.role == 'accountant'
+
+    def has_role(self, role):
+        if role == 'admin':
+            return self.is_admin
+        elif role == 'accountant':
+            return self.is_accountant
+        return True
 
 # Model kategorii
 class Category(db.Model):
@@ -66,14 +81,23 @@ def init_app(app):
         # Tworzenie tabel
         db.create_all()
         
-        # Tworzenie domyślnego użytkownika-księgowego, jeśli nie istnieje
-        if not User.query.filter_by(username='accountant').first():
+        # Tworzenie domyślnego administratora
+        if not User.query.filter_by(role='admin').first():
             admin = User(
-                username='accountant',
+                username='admin',
                 password_hash=generate_password_hash(os.environ.get('INITIAL_ADMIN_PASSWORD', 'Admin123!')),
-                is_accountant=True
+                role='admin'
             )
             db.session.add(admin)
+        
+        # Tworzenie domyślnego księgowego jeśli nie istnieje
+        if not User.query.filter_by(role='accountant').first():
+            accountant = User(
+                username='accountant',
+                password_hash=generate_password_hash('Accountant123!'),
+                role='accountant'
+            )
+            db.session.add(accountant)
             
         # Dodawanie domyślnych kategorii
         default_categories = [
@@ -253,6 +277,81 @@ def reports():
                          pending_count=pending_count,
                          categories=categories,
                          timeline=timeline)
+
+@app.route('/manage_users', methods=['GET', 'POST'])
+@login_required
+def manage_users():
+    if not current_user.is_admin:
+        flash('Brak dostępu', 'danger')
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        role = request.form.get('role', 'user')
+        
+        if User.query.filter_by(username=username).first():
+            flash('Użytkownik o takiej nazwie już istnieje', 'danger')
+        else:
+            user = User(
+                username=username,
+                password_hash=generate_password_hash(password),
+                role=role
+            )
+            db.session.add(user)
+            try:
+                db.session.commit()
+                flash('Użytkownik został dodany', 'success')
+            except Exception as e:
+                db.session.rollback()
+                flash('Wystąpił błąd podczas dodawania użytkownika', 'danger')
+    
+    users = User.query.all()
+    return render_template('manage_users.html', users=users)
+
+@app.route('/update_user/<int:user_id>', methods=['POST'])
+@login_required
+def update_user(user_id):
+    user = User.query.get_or_404(user_id)
+    data = request.get_json()
+    
+    try:
+        # Tylko admin może zmieniać role
+        if current_user.is_admin:
+            if 'role' in data:
+                user.role = data['role']
+                
+        # Admin może zmieniać hasła wszystkich
+        # Użytkownik może zmienić tylko swoje hasło
+        if 'password' in data and data['password']:
+            if current_user.is_admin or current_user.id == user_id:
+                user.password_hash = generate_password_hash(data['password'])
+            else:
+                return jsonify({'error': 'Brak uprawnień do zmiany hasła'}), 403
+            
+        db.session.commit()
+        return jsonify({
+            'message': 'Dane użytkownika zostały zaktualizowane',
+            'role': user.role
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if not current_user.is_admin:
+        return jsonify({'error': 'Brak uprawnień'}), 403
+    
+    if current_user.id == user_id:
+        return jsonify({'error': 'Nie można usunąć własnego konta'}), 400
+        
+    user = User.query.get_or_404(user_id)
+    db.session.delete(user)
+    db.session.commit()
+    
+    return jsonify({'message': 'Użytkownik został usunięty'})
 
 @app.route('/approve_expense/<int:expense_id>', methods=['POST'])
 @login_required
