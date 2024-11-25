@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="bi bi-people"></i> Zarządzanie użytkownikami
+        </h5>
+        {% if current_user.is_admin %}
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
+            <i class="bi bi-person-plus"></i> Dodaj użytkownika
+        </button>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Login</th>
+                        <th>Rola</th>
+                        <th>Liczba wydatków</th>
+                        <th>Akcje</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.username }}</td>
+                        <td>
+                            {% if user.role == 'admin' %}
+                            <span class="badge bg-danger">Administrator</span>
+                            {% elif user.role == 'accountant' %}
+                            <span class="badge bg-primary">Księgowy</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Użytkownik</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.expenses|length }}</td>
+                        <td>
+                            {% if current_user.is_admin or current_user.id == user.id %}
+                            <button class="btn btn-sm btn-primary" 
+                                    onclick="editUser({{ user.id }}, '{{ user.username }}', '{{ user.role }}')">
+                                {% if current_user.is_admin %}
+                                <i class="bi bi-pencil"></i>
+                                {% else %}
+                                <i class="bi bi-key"></i>
+                                {% endif %}
+                            </button>
+                            {% endif %}
+                            {% if current_user.is_admin and current_user.id != user.id %}
+                            <button class="btn btn-sm btn-danger" onclick="deleteUser({{ user.id }})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal dodawania użytkownika -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title">Dodaj użytkownika</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Login</label>
+                        <input type="text" name="username" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Hasło</label>
+                        <input type="password" name="password" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Rola</label>
+                        <select name="role" class="form-select" required>
+                            <option value="user">Użytkownik</option>
+                            <option value="accountant">Księgowy</option>
+                            <option value="admin">Administrator</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                    <button type="submit" class="btn btn-primary">Dodaj</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal edycji użytkownika -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edytuj użytkownika</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editUserId">
+                <div class="mb-3">
+                    <label class="form-label">Login</label>
+                    <input type="text" id="editUsername" class="form-control" readonly>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Nowe hasło</label>
+                    <input type="password" id="editPassword" class="form-control" 
+                           placeholder="Pozostaw puste, aby nie zmieniać">
+                </div>
+                {% if current_user.is_admin %}
+                <div class="mb-3">
+                    <label class="form-label">Rola</label>
+                    <select id="editRole" class="form-select">
+                        <option value="user">Użytkownik</option>
+                        <option value="accountant">Księgowy</option>
+                        <option value="admin">Administrator</option>
+                    </select>
+                </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                <button type="button" class="btn btn-primary" onclick="updateUser()">Zapisz zmiany</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function editUser(userId, username, role) {
+    document.getElementById('editUserId').value = userId;
+    document.getElementById('editUsername').value = username;
+    document.getElementById('editPassword').value = '';
+    const roleSelect = document.getElementById('editRole');
+    if (roleSelect) {
+        roleSelect.value = role;
+    }
+    new bootstrap.Modal(document.getElementById('editUserModal')).show();
+}
+
+function updateUser() {
+    const userId = document.getElementById('editUserId').value;
+    const password = document.getElementById('editPassword').value;
+    const roleSelect = document.getElementById('editRole');
+    
+    const data = {};
+    if (password) data.password = password;
+    if (roleSelect) data.role = roleSelect.value;
+    
+    fetch(`/update_user/${userId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message) {
+            location.reload();
+        } else {
+            alert(data.error || 'Wystąpił błąd');
+        }
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function deleteUser(userId) {
+    if (confirm('Czy na pewno chcesz usunąć tego użytkownika?')) {
+        fetch(`/delete_user/${userId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                location.reload();
+            } else {
+                alert(data.error || 'Wystąpił błąd');
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+}
+</script>
+{% endblock %}
