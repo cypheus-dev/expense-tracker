@@ -96,7 +96,6 @@ class Expense(db.Model):
             'rejected': 'danger'
         }.get(self.status, 'secondary')
 
-# Template filters
 @app.template_filter('month_name')
 def month_name_filter(date_str):
     try:
@@ -125,69 +124,7 @@ def datetime_filter(value, format='%Y-%m-%d'):
         except:
             return value
     return value
-def init_app(app):
-    with app.app_context():
-        # Tworzenie tabel
-        db.create_all()
-        
-        # Tworzenie domyślnego administratora
-        if not User.query.filter_by(role='admin').first():
-            admin = User(
-                username='admin',
-                password_hash=generate_password_hash(os.environ.get('INITIAL_ADMIN_PASSWORD', 'Admin123!')),
-                role='admin'
-            )
-            db.session.add(admin)
-        
-        # Tworzenie domyślnego księgowego
-        if not User.query.filter_by(role='accountant').first():
-            accountant = User(
-                username='accountant',
-                password_hash=generate_password_hash('Accountant123!'),
-                role='accountant'
-            )
-            db.session.add(accountant)
-            
-        # Dodawanie domyślnych kategorii
-        default_categories = [
-            ("transport", "Wydatki na transport, paliwo, bilety", True),
-            ("zakwaterowanie", "Hotele, noclegi", False),
-            ("wyżywienie", "Posiłki, catering", False),
-            ("materiały", "Materiały biurowe", False),
-            ("inne", "Pozostałe wydatki", False)
-        ]
-        
-        for name, description, is_default in default_categories:
-            if not Category.query.filter_by(name=name).first():
-                category = Category(
-                    name=name, 
-                    description=description,
-                    is_default=is_default
-                )
-                db.session.add(category)
-
-        # Dodawanie domyślnych kart
-        default_cards = [
-            ("Karta PLN", "PLN", "Karta złotówkowa"),
-            ("Karta EUR", "EUR", "Karta euro")
-        ]
-
-        for name, currency, description in default_cards:
-            if not PaymentCard.query.filter_by(name=name).first():
-                card = PaymentCard(
-                    name=name,
-                    currency=currency,
-                    description=description
-                )
-                db.session.add(card)
-        
-        try:
-            db.session.commit()
-            print("Initialization completed successfully!")
-        except Exception as e:
-            db.session.rollback()
-            print(f"Error during initialization: {e}")
-
+	
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -310,6 +247,20 @@ def edit_expense(expense_id):
                          categories=categories,
                          cards=cards)
 
+@app.route('/download_receipt/<int:expense_id>')
+@login_required
+def download_receipt(expense_id):
+    expense = Expense.query.get_or_404(expense_id)
+    if current_user.is_accountant or expense.user_id == current_user.id:
+        if expense.receipt_data:
+            return send_file(
+                BytesIO(expense.receipt_data),
+                download_name=expense.receipt_filename,
+                as_attachment=True
+            )
+    flash('Brak dostępu lub brak pliku', 'danger')
+    return redirect(url_for('index'))
+	
 @app.route('/reports')
 @login_required
 def reports():
@@ -405,11 +356,6 @@ def config():
                          categories=categories, 
                          users=users)
 
-@app.route('/config', methods=['GET', 'POST'])
-@login_required
-def config():
-    # ... existing config route code ...
-
 @app.route('/update_user/<int:user_id>', methods=['POST'])
 @login_required
 def update_user(user_id):
@@ -453,7 +399,7 @@ def delete_user(user_id):
     db.session.commit()
     
     return jsonify({'message': 'Użytkownik został usunięty'})
-
+	
 @app.route('/config/card', methods=['POST'])
 @login_required
 def add_card():
@@ -564,99 +510,60 @@ def manage_category(category_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 400
 
-@app.route('/approve_expense/<int:expense_id>', methods=['POST'])
-@login_required
-def approve_expense(expense_id):
-    if not current_user.is_accountant:
-        return jsonify({'error': 'Brak uprawnień'}), 403
-    
-    expense = Expense.query.get_or_404(expense_id)
-    expense.status = 'approved'
-    db.session.commit()
-    
-    return jsonify({
-        'message': 'Wydatek zatwierdzony',
-        'status': expense.status,
-        'status_color': expense.status_color
-    })
-@app.route('/export_expenses')
-@login_required
-def export_expenses():
-    if not current_user.is_accountant:
-        flash('Brak dostępu', 'danger')
-        return redirect(url_for('index'))
+def init_app(app):
+    with app.app_context():
+        # Tworzenie tabel
+        db.create_all()
+        
+        # Tworzenie domyślnego administratora
+        if not User.query.filter_by(role='admin').first():
+            admin = User(
+                username='admin',
+                password_hash=generate_password_hash(os.environ.get('INITIAL_ADMIN_PASSWORD', 'Admin123!')),
+                role='admin'
+            )
+            db.session.add(admin)
+        
+        # Tworzenie domyślnego księgowego
+        if not User.query.filter_by(role='accountant').first():
+            accountant = User(
+                username='accountant',
+                password_hash=generate_password_hash('Accountant123!'),
+                role='accountant'
+            )
+            db.session.add(accountant)
+            
+        # Dodawanie domyślnych kategorii
+        default_categories = [
+            ("transport", "Wydatki na transport, paliwo, bilety", True),
+            ("zakwaterowanie", "Hotele, noclegi", False),
+            ("wyżywienie", "Posiłki, catering", False),
+            ("materiały", "Materiały biurowe", False),
+            ("inne", "Pozostałe wydatki", False)
+        ]
+        
+        for name, description, is_default in default_categories:
+            if not Category.query.filter_by(name=name).first():
+                category = Category(name=name, description=description, is_default=is_default)
+                db.session.add(category)
 
-    output = BytesIO()
-    workbook = xlsxwriter.Workbook(output)
-    worksheet = workbook.add_worksheet()
+        # Dodawanie domyślnych kart
+        default_cards = [
+            ("Karta PLN", "PLN", "Karta złotówkowa"),
+            ("Karta EUR", "EUR", "Karta euro")
+        ]
 
-    # Style
-    header_format = workbook.add_format({
-        'bold': True,
-        'bg_color': '#f0f0f0',
-        'border': 1
-    })
-    
-    date_format = workbook.add_format({'num_format': 'yyyy-mm-dd'})
-    amount_format_pln = workbook.add_format({'num_format': '#,##0.00 "zł"'})
-    amount_format_eur = workbook.add_format({'num_format': '#,##0.00 "€"'})
-
-    # Nagłówki
-    headers = ['Data', 'Użytkownik', 'Karta', 'Kategoria', 'Opis', 'Kwota', 'Waluta', 'Status']
-    for col, header in enumerate(headers):
-        worksheet.write(0, col, header, header_format)
-
-    # Dane
-    expenses = Expense.query.order_by(Expense.date.desc()).all()
-    for row, expense in enumerate(expenses, start=1):
-        worksheet.write_datetime(row, 0, expense.date, date_format)
-        worksheet.write(row, 1, expense.user.username)
-        worksheet.write(row, 2, expense.card.name if expense.card else '')
-        worksheet.write(row, 3, expense.category.name if expense.category else '')
-        worksheet.write(row, 4, expense.description)
-        if expense.currency == 'PLN':
-            worksheet.write_number(row, 5, expense.amount, amount_format_pln)
-        else:
-            worksheet.write_number(row, 5, expense.amount, amount_format_eur)
-        worksheet.write(row, 6, expense.currency)
-        worksheet.write(row, 7, expense.status)
-
-    # Autofiltr i szerokość kolumn
-    worksheet.autofilter(0, 0, len(expenses), len(headers)-1)
-    worksheet.set_column(0, 0, 12)  # Data
-    worksheet.set_column(1, 1, 15)  # Użytkownik
-    worksheet.set_column(2, 2, 15)  # Karta
-    worksheet.set_column(3, 3, 15)  # Kategoria
-    worksheet.set_column(4, 4, 40)  # Opis
-    worksheet.set_column(5, 5, 12)  # Kwota
-    worksheet.set_column(6, 6, 8)   # Waluta
-    worksheet.set_column(7, 7, 10)  # Status
-
-    # Podsumowanie
-    summary_row = len(expenses) + 2
-    worksheet.write(summary_row, 0, "Podsumowanie", header_format)
-    
-    # Suma PLN
-    worksheet.write(summary_row, 1, "Suma PLN:")
-    worksheet.write_formula(summary_row, 2, 
-        f'=SUMIFS(F2:F{summary_row},G2:G{summary_row},"PLN")', 
-        amount_format_pln)
-    
-    # Suma EUR
-    worksheet.write(summary_row + 1, 1, "Suma EUR:")
-    worksheet.write_formula(summary_row + 1, 2, 
-        f'=SUMIFS(F2:F{summary_row},G2:G{summary_row},"EUR")', 
-        amount_format_eur)
-
-    workbook.close()
-    output.seek(0)
-
-    return send_file(
-        output,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        as_attachment=True,
-        download_name=f'wydatki_{datetime.now().strftime("%Y%m%d")}.xlsx'
-    )
+        for name, currency, description in default_cards:
+            if not PaymentCard.query.filter_by(name=name).first():
+                card = PaymentCard(name=name, currency=currency, description=description)
+                db.session.add(card)
+        
+        try:
+            db.session.commit()
+            print("Initialization completed successfully!")
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error during initialization: {e}")
 
 # Inicjalizacja przy starcie
 with app.app_context():
