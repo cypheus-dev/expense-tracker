@@ -51,6 +51,7 @@ class PaymentCard(db.Model):
     currency = db.Column(db.String(3), nullable=False, default='PLN')
     description = db.Column(db.String(200))
     is_active = db.Column(db.Boolean, default=True)
+    is_default = db.Column(db.Boolean, default=False)  
     expenses = db.relationship('Expense', backref='card', lazy=True)
 
 class User(UserMixin, db.Model):
@@ -219,12 +220,12 @@ def edit_expense(expense_id):
     
     if request.method == 'POST':
         try:
-            expense.date = datetime.strptime(request.form['date'], '%Y-%m-%d')
-            expense.amount = float(request.form['amount'])
-            expense.currency = request.form['currency']
-            expense.description = request.form['description']
-            expense.category_id = int(request.form['category'])
-            expense.card_id = int(request.form['card_id'])
+            expense.date = datetime.strptime(request.form.get('date'), '%Y-%m-%d')
+            expense.amount = float(request.form.get('amount'))
+            expense.currency = request.form.get('currency')
+            expense.description = request.form.get('description')
+            expense.category_id = int(request.form.get('category'))
+            expense.card_id = int(request.form.get('card_id'))
             
             if 'receipt' in request.files:
                 file = request.files['receipt']
@@ -237,7 +238,9 @@ def edit_expense(expense_id):
             return redirect(url_for('index'))
             
         except Exception as e:
+            db.session.rollback()
             flash(f'Wystąpił błąd: {str(e)}', 'danger')
+            return redirect(url_for('edit_expense', expense_id=expense_id))
     
     return render_template('edit_expense.html', 
                          expense=expense,
@@ -406,11 +409,18 @@ def add_card():
     name = request.form.get('name')
     currency = request.form.get('currency')
     description = request.form.get('description')
+    is_default = 'is_default' in request.form
+    
+    if is_default:
+        # Reset other default cards
+        PaymentCard.query.filter_by(is_default=True).update({'is_default': False})
     
     card = PaymentCard(
         name=name,
         currency=currency,
-        description=description
+        description=description,
+        is_default=is_default,
+        is_active=True
     )
     db.session.add(card)
     
@@ -419,7 +429,7 @@ def add_card():
         flash('Karta została dodana', 'success')
     except Exception as e:
         db.session.rollback()
-        flash('Wystąpił błąd podczas dodawania karty', 'danger')
+        flash(f'Wystąpił błąd podczas dodawania karty: {str(e)}', 'danger')
     
     return redirect(url_for('config'))
 
@@ -437,10 +447,16 @@ def manage_card(card_id):
         db.session.delete(card)
     else:  # PUT
         data = request.get_json()
+        
+        if data.get('is_default'):
+            # Reset other default cards
+            PaymentCard.query.filter_by(is_default=True).update({'is_default': False})
+        
         card.name = data.get('name', card.name)
         card.currency = data.get('currency', card.currency)
         card.description = data.get('description', card.description)
         card.is_active = data.get('is_active', card.is_active)
+        card.is_default = data.get('is_default', card.is_default)
     
     try:
         db.session.commit()
@@ -460,7 +476,7 @@ def add_category():
     is_default = 'is_default' in request.form
     
     if is_default:
-        # Usuń poprzednią domyślną kategorię
+        # Reset other default categories
         Category.query.filter_by(is_default=True).update({'is_default': False})
     
     category = Category(
@@ -475,7 +491,7 @@ def add_category():
         flash('Kategoria została dodana', 'success')
     except Exception as e:
         db.session.rollback()
-        flash('Wystąpił błąd podczas dodawania kategorii', 'danger')
+        flash(f'Wystąpił błąd podczas dodawania kategorii: {str(e)}', 'danger')
     
     return redirect(url_for('config'))
 
@@ -493,9 +509,11 @@ def manage_category(category_id):
         db.session.delete(category)
     else:  # PUT
         data = request.get_json()
+        
         if data.get('is_default'):
-            # Usuń poprzednią domyślną kategorię
+            # Reset other default categories
             Category.query.filter_by(is_default=True).update({'is_default': False})
+        
         category.name = data.get('name', category.name)
         category.description = data.get('description', category.description)
         category.is_default = data.get('is_default', category.is_default)
