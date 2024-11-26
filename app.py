@@ -510,6 +510,85 @@ def manage_category(category_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 400
 
+@app.route('/export_expenses')
+@login_required
+def export_expenses():
+    if not current_user.is_accountant:
+        flash('Brak dostępu', 'danger')
+        return redirect(url_for('index'))
+
+    output = BytesIO()
+    workbook = xlsxwriter.Workbook(output)
+    worksheet = workbook.add_worksheet()
+
+    # Style
+    header_format = workbook.add_format({
+        'bold': True,
+        'bg_color': '#f0f0f0',
+        'border': 1
+    })
+    
+    date_format = workbook.add_format({'num_format': 'yyyy-mm-dd'})
+    amount_format_pln = workbook.add_format({'num_format': '#,##0.00 "zł"'})
+    amount_format_eur = workbook.add_format({'num_format': '#,##0.00 "€"'})
+
+    # Nagłówki
+    headers = ['Data', 'Użytkownik', 'Karta', 'Kategoria', 'Opis', 'Kwota', 'Waluta', 'Status']
+    for col, header in enumerate(headers):
+        worksheet.write(0, col, header, header_format)
+
+    # Dane
+    expenses = Expense.query.order_by(Expense.date.desc()).all()
+    for row, expense in enumerate(expenses, start=1):
+        worksheet.write_datetime(row, 0, expense.date, date_format)
+        worksheet.write(row, 1, expense.user.username)
+        worksheet.write(row, 2, expense.card.name if expense.card else '')
+        worksheet.write(row, 3, expense.category.name if expense.category else '')
+        worksheet.write(row, 4, expense.description)
+        if expense.currency == 'PLN':
+            worksheet.write_number(row, 5, expense.amount, amount_format_pln)
+        else:
+            worksheet.write_number(row, 5, expense.amount, amount_format_eur)
+        worksheet.write(row, 6, expense.currency)
+        worksheet.write(row, 7, expense.status)
+
+    # Autofiltr i szerokość kolumn
+    worksheet.autofilter(0, 0, len(expenses), len(headers)-1)
+    worksheet.set_column(0, 0, 12)  # Data
+    worksheet.set_column(1, 1, 15)  # Użytkownik
+    worksheet.set_column(2, 2, 15)  # Karta
+    worksheet.set_column(3, 3, 15)  # Kategoria
+    worksheet.set_column(4, 4, 40)  # Opis
+    worksheet.set_column(5, 5, 12)  # Kwota
+    worksheet.set_column(6, 6, 8)   # Waluta
+    worksheet.set_column(7, 7, 10)  # Status
+
+    # Podsumowanie
+    summary_row = len(expenses) + 2
+    worksheet.write(summary_row, 0, "Podsumowanie", header_format)
+    
+    # Suma PLN
+    worksheet.write(summary_row, 1, "Suma PLN:")
+    worksheet.write_formula(summary_row, 2, 
+        f'=SUMIFS(F2:F{summary_row},G2:G{summary_row},"PLN")', 
+        amount_format_pln)
+    
+    # Suma EUR
+    worksheet.write(summary_row + 1, 1, "Suma EUR:")
+    worksheet.write_formula(summary_row + 1, 2, 
+        f'=SUMIFS(F2:F{summary_row},G2:G{summary_row},"EUR")', 
+        amount_format_eur)
+
+    workbook.close()
+    output.seek(0)
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'wydatki_{datetime.now().strftime("%Y%m%d")}.xlsx'
+    )
+
 def init_app(app):
     with app.app_context():
         # Tworzenie tabel
