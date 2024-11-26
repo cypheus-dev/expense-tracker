@@ -136,20 +136,17 @@ def index():
     per_page = 50  # Zwiększamy ilość wydatków na stronę ze względu na grupowanie
     
     if current_user.is_accountant:
-        query = Expense.query
+        pagination = Expense.query.order_by(Expense.date.desc())\
+            .paginate(page=page, per_page=per_page, error_out=False)
     else:
-        query = Expense.query.filter_by(user_id=current_user.id)
+        pagination = Expense.query.filter_by(user_id=current_user.id)\
+            .order_by(Expense.date.desc())\
+            .paginate(page=page, per_page=per_page, error_out=False)
     
-    # Sortowanie po dacie malejąco
-    query = query.order_by(Expense.date.desc())
-    
-    # Paginacja
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-    expenses = pagination.items
-    
+    # Zmieniamy sposób przekazywania danych do szablonu
     return render_template('index.html', 
-                         expenses=expenses,
-                         pagination=pagination)
+                         pagination=pagination,
+                         expenses=pagination.items)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
