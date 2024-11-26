@@ -165,6 +165,34 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+@app.route('/add_user', methods=['POST'])
+@login_required
+def add_user():
+    if not current_user.is_admin:
+        return jsonify({'error': 'Brak uprawnień'}), 403
+    
+    username = request.form.get('username')
+    password = request.form.get('password')
+    role = request.form.get('role', 'user')
+    
+    if User.query.filter_by(username=username).first():
+        flash('Użytkownik o takiej nazwie już istnieje', 'danger')
+    else:
+        user = User(
+            username=username,
+            password_hash=generate_password_hash(password),
+            role=role
+        )
+        db.session.add(user)
+        try:
+            db.session.commit()
+            flash('Użytkownik został dodany', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Wystąpił błąd podczas dodawania użytkownika: {str(e)}', 'danger')
+    
+    return redirect(url_for('config'))
+
 @app.route('/add_expense', methods=['GET', 'POST'])
 @login_required
 def add_expense():
@@ -433,7 +461,7 @@ def add_card():
     
     return redirect(url_for('config'))
 
-@app.route('/config/card/<int:card_id>', methods=['PUT', 'DELETE'])
+@app.route('/config/card/<int:card_id>', methods=['POST', 'DELETE'])  # Changed from PUT to POST
 @login_required
 def manage_card(card_id):
     if not current_user.is_admin:
@@ -445,7 +473,7 @@ def manage_card(card_id):
         if Expense.query.filter_by(card_id=card_id).first():
             return jsonify({'error': 'Nie można usunąć karty, która jest używana'}), 400
         db.session.delete(card)
-    else:  # PUT
+    else:  # POST
         data = request.get_json()
         
         if data.get('is_default'):
@@ -495,7 +523,7 @@ def add_category():
     
     return redirect(url_for('config'))
 
-@app.route('/config/category/<int:category_id>', methods=['PUT', 'DELETE'])
+@app.route('/config/category/<int:category_id>', methods=['POST', 'DELETE'])  # Changed from PUT to POST
 @login_required
 def manage_category(category_id):
     if not current_user.is_admin:
@@ -507,7 +535,7 @@ def manage_category(category_id):
         if Expense.query.filter_by(category_id=category_id).first():
             return jsonify({'error': 'Nie można usunąć kategorii, która jest używana'}), 400
         db.session.delete(category)
-    else:  # PUT
+    else:  # POST
         data = request.get_json()
         
         if data.get('is_default'):
