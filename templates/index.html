@@ -21,19 +21,26 @@
         </div>
     </div>
     <div class="card-body">
-        {% for month_group in expenses|groupby('date.strftime', '%Y-%m') %}
+        {% set months = {} %}
+        {% for expense in expenses.items %}
+            {% set month_key = expense.date.strftime('%Y-%m') %}
+            {% if month_key not in months %}
+                {% set _ = months.update({month_key: []}) %}
+            {% endif %}
+            {% set _ = months[month_key].append(expense) %}
+        {% endfor %}
+
+        {% for month_key, month_expenses in months|dictsort(reverse=true) %}
         <div class="card mb-4">
             <div class="card-header bg-light">
                 <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">
-                        {{ month_group.grouper|datetime('%Y-%m')|month_name }}
-                    </h6>
+                    <h6 class="mb-0">{{ month_key|datetime('%Y-%m')|month_name }}</h6>
                     <div>
                         <span class="badge bg-primary">
-                            Suma PLN: {{ month_group.list|sum_by_currency('PLN')|format_currency('PLN') }}
+                            Suma PLN: {{ month_expenses|sum_by_currency('PLN')|format_currency('PLN') }}
                         </span>
                         <span class="badge bg-info ms-2">
-                            Suma EUR: {{ month_group.list|sum_by_currency('EUR')|format_currency('EUR') }}
+                            Suma EUR: {{ month_expenses|sum_by_currency('EUR')|format_currency('EUR') }}
                         </span>
                     </div>
                 </div>
@@ -56,7 +63,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for expense in month_group.list %}
+                        {% for expense in month_expenses|sort(attribute='date', reverse=true) %}
                         <tr>
                             <td>{{ expense.date.strftime('%Y-%m-%d') }}</td>
                             <td class="text-end">
@@ -112,17 +119,17 @@
         {% endfor %}
         
         <!-- Paginacja -->
-        {% if pagination.pages > 1 %}
+        {% if expenses.pages > 1 %}
         <nav aria-label="Page navigation">
             <ul class="pagination justify-content-center">
-                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('index', page=pagination.prev_num) if pagination.has_prev else '#' }}">
+                <li class="page-item {% if not expenses.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('index', page=expenses.prev_num) if expenses.has_prev else '#' }}">
                         <i class="bi bi-chevron-left"></i>
                     </a>
                 </li>
-                {% for page in pagination.iter_pages() %}
+                {% for page in expenses.iter_pages() %}
                     {% if page %}
-                        <li class="page-item {% if page == pagination.page %}active{% endif %}">
+                        <li class="page-item {% if page == expenses.page %}active{% endif %}">
                             <a class="page-link" href="{{ url_for('index', page=page) }}">{{ page }}</a>
                         </li>
                     {% else %}
@@ -131,8 +138,8 @@
                         </li>
                     {% endif %}
                 {% endfor %}
-                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('index', page=pagination.next_num) if pagination.has_next else '#' }}">
+                <li class="page-item {% if not expenses.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('index', page=expenses.next_num) if expenses.has_next else '#' }}">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
