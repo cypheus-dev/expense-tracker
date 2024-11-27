@@ -198,6 +198,11 @@ def add_user():
 def add_expense():
     cards = PaymentCard.query.filter_by(is_active=True).all()
     categories = Category.query.all()
+    
+    # Get default card and category
+    default_card = PaymentCard.query.filter_by(is_default=True, is_active=True).first()
+    default_category = Category.query.filter_by(is_default=True).first()
+    
     if request.method == 'POST':
         try:
             expense = Expense(
@@ -232,6 +237,8 @@ def add_expense():
     return render_template('add_expense.html', 
                          categories=categories,
                          cards=cards,
+                         default_card=default_card,
+                         default_category=default_category,
                          today=datetime.now().strftime('%Y-%m-%d'))
 
 @app.route('/edit_expense/<int:expense_id>', methods=['GET', 'POST'])
@@ -461,7 +468,7 @@ def add_card():
     
     return redirect(url_for('config'))
 
-@app.route('/config/card/<int:card_id>', methods=['POST', 'DELETE'])  # Changed from PUT to POST
+@app.route('/config/card/<int:card_id>', methods=['POST', 'DELETE'])
 @login_required
 def manage_card(card_id):
     if not current_user.is_admin:
@@ -475,10 +482,9 @@ def manage_card(card_id):
         db.session.delete(card)
     else:  # POST
         data = request.get_json()
-        
         if data.get('is_default'):
-            # Reset other default cards
-            PaymentCard.query.filter_by(is_default=True).update({'is_default': False})
+            PaymentCard.query.update({'is_default': False})
+            db.session.flush()
         
         card.name = data.get('name', card.name)
         card.currency = data.get('currency', card.currency)
@@ -523,7 +529,7 @@ def add_category():
     
     return redirect(url_for('config'))
 
-@app.route('/config/category/<int:category_id>', methods=['POST', 'DELETE'])  # Changed from PUT to POST
+@app.route('/config/category/<int:category_id>', methods=['POST', 'DELETE'])
 @login_required
 def manage_category(category_id):
     if not current_user.is_admin:
@@ -537,10 +543,9 @@ def manage_category(category_id):
         db.session.delete(category)
     else:  # POST
         data = request.get_json()
-        
         if data.get('is_default'):
-            # Reset other default categories
-            Category.query.filter_by(is_default=True).update({'is_default': False})
+            Category.query.update({'is_default': False})
+            db.session.flush()
         
         category.name = data.get('name', category.name)
         category.description = data.get('description', category.description)
