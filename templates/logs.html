@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="bi bi-journal-text"></i> Logi systemowe
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Data i czas</th>
+                        <th>Użytkownik</th>
+                        <th>Akcja</th>
+                        <th>Opis</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs.items %}
+                    <tr>
+                        <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>{{ log.user.username }}</td>
+                        <td>
+                            {% if log.action == 'add_expense' %}
+                            <span class="badge bg-success">Dodanie wydatku</span>
+                            {% elif log.action == 'edit_expense' %}
+                            <span class="badge bg-primary">Edycja wydatku</span>
+                            {% elif log.action == 'delete_expense' %}
+                            <span class="badge bg-danger">Usunięcie wydatku</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ log.action }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ log.description }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if logs.pages > 1 %}
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% for page in logs.iter_pages() %}
+                    {% if page %}
+                        <li class="page-item {% if page == logs.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('view_logs', page=page) }}">{{ page }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
