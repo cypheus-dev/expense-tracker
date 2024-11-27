@@ -173,6 +173,77 @@
         </div>
     </div>
 </div>
+<!-- Modal dodawania użytkownika -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('add_user') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Dodaj użytkownika</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Login</label>
+                        <input type="text" name="username" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Hasło</label>
+                        <input type="password" name="password" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Rola</label>
+                        <select name="role" class="form-select" required>
+                            <option value="user">Użytkownik</option>
+                            <option value="accountant">Księgowy</option>
+                            <option value="admin">Administrator</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                    <button type="submit" class="btn btn-primary">Dodaj</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal edycji użytkownika -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edytuj użytkownika</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editUserId">
+                <div class="mb-3">
+                    <label class="form-label">Login</label>
+                    <input type="text" id="editUsername" class="form-control" readonly>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Nowe hasło</label>
+                    <input type="password" id="editPassword" class="form-control" 
+                           placeholder="Pozostaw puste, aby nie zmieniać">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Rola</label>
+                    <select id="editRole" class="form-select" required>
+                        <option value="user">Użytkownik</option>
+                        <option value="accountant">Księgowy</option>
+                        <option value="admin">Administrator</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                <button type="button" class="btn btn-primary" onclick="updateUser()">Zapisz zmiany</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Modal dodawania karty -->
 <div class="modal fade" id="addCardModal" tabindex="-1">
@@ -254,7 +325,6 @@
         </div>
     </div>
 </div>
-
 <!-- Modal dodawania kategorii -->
 <div class="modal fade" id="addCategoryModal" tabindex="-1">
     <div class="modal-dialog">
@@ -317,131 +387,9 @@
         </div>
     </div>
 </div>
+
 <script>
-function editCard(id, name, currency, description, isActive, isDefault) {
-    document.getElementById('editCardId').value = id;
-    document.getElementById('editCardName').value = name;
-    document.getElementById('editCardCurrency').value = currency;
-    document.getElementById('editCardDescription').value = description;
-    document.getElementById('editCardActive').checked = isActive;
-    document.getElementById('editCardDefault').checked = isDefault;
-    new bootstrap.Modal(document.getElementById('editCardModal')).show();
-}
-
-function updateCard() {
-    const id = document.getElementById('editCardId').value;
-    const data = {
-        name: document.getElementById('editCardName').value,
-        currency: document.getElementById('editCardCurrency').value,
-        description: document.getElementById('editCardDescription').value,
-        is_active: document.getElementById('editCardActive').checked,
-        is_default: document.getElementById('editCardDefault').checked
-    };
-
-    fetch(`/config/card/${id}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.message) {
-            location.reload();
-        } else {
-            alert(data.error || 'Wystąpił błąd');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Wystąpił błąd podczas aktualizacji karty');
-    });
-}
-
-function deleteCard(id) {
-    if (confirm('Czy na pewno chcesz usunąć tę kartę?')) {
-        fetch(`/config/card/${id}`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.message) {
-                location.reload();
-            } else {
-                alert(data.error || 'Wystąpił błąd');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Wystąpił błąd podczas usuwania karty');
-        });
-    }
-}
-
-function editCategory(id, name, description, isDefault) {
-    document.getElementById('editCategoryId').value = id;
-    document.getElementById('editCategoryName').value = name;
-    document.getElementById('editCategoryDescription').value = description;
-    document.getElementById('editCategoryDefault').checked = isDefault;
-    new bootstrap.Modal(document.getElementById('editCategoryModal')).show();
-}
-
-function updateCategory() {
-    const id = document.getElementById('editCategoryId').value;
-    const data = {
-        name: document.getElementById('editCategoryName').value,
-        description: document.getElementById('editCategoryDescription').value,
-        is_default: document.getElementById('editCategoryDefault').checked
-    };
-
-    fetch(`/config/category/${id}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.message) {
-            location.reload();
-        } else {
-            alert(data.error || 'Wystąpił błąd');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Wystąpił błąd podczas aktualizacji kategorii');
-    });
-}
-
-function deleteCategory(id) {
-    if (confirm('Czy na pewno chcesz usunąć tę kategorię?')) {
-        fetch(`/config/category/${id}`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.message) {
-                location.reload();
-            } else {
-                alert(data.error || 'Wystąpił błąd');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Wystąpił błąd podczas usuwania kategorii');
-        });
-    }
-}
-
+// Funkcje dla użytkowników
 function editUser(userId, username, role) {
     document.getElementById('editUserId').value = userId;
     document.getElementById('editUsername').value = username;
@@ -495,12 +443,128 @@ function deleteUser(userId) {
                 alert(data.error || 'Wystąpił błąd');
             }
         })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Wystąpił błąd podczas usuwania użytkownika');
-        });
+        .catch(error => console.error('Error:', error));
+    }
+}
+
+// Funkcje dla kart
+function editCard(id, name, currency, description, isActive, isDefault) {
+    document.getElementById('editCardId').value = id;
+    document.getElementById('editCardName').value = name;
+    document.getElementById('editCardCurrency').value = currency;
+    document.getElementById('editCardDescription').value = description;
+    document.getElementById('editCardActive').checked = isActive;
+    document.getElementById('editCardDefault').checked = isDefault;
+    new bootstrap.Modal(document.getElementById('editCardModal')).show();
+}
+
+function updateCard() {
+    const id = document.getElementById('editCardId').value;
+    const data = {
+        name: document.getElementById('editCardName').value,
+        currency: document.getElementById('editCardCurrency').value,
+        description: document.getElementById('editCardDescription').value,
+        is_active: document.getElementById('editCardActive').checked,
+        is_default: document.getElementById('editCardDefault').checked
+    };
+
+    fetch(`/config/card/${id}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message) {
+            location.reload();
+        } else {
+            alert(data.error || 'Wystąpił błąd');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Wystąpił błąd podczas aktualizacji karty');
+    });
+}
+
+function deleteCard(id) {
+    if (confirm('Czy na pewno chcesz usunąć tę kartę?')) {
+        fetch(`/config/card/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                location.reload();
+            } else {
+                alert(data.error || 'Wystąpił błąd');
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+}
+
+// Funkcje dla kategorii
+function editCategory(id, name, description, isDefault) {
+    document.getElementById('editCategoryId').value = id;
+    document.getElementById('editCategoryName').value = name;
+    document.getElementById('editCategoryDescription').value = description;
+    document.getElementById('editCategoryDefault').checked = isDefault;
+    new bootstrap.Modal(document.getElementById('editCategoryModal')).show();
+}
+
+function updateCategory() {
+    const id = document.getElementById('editCategoryId').value;
+    const data = {
+        name: document.getElementById('editCategoryName').value,
+        description: document.getElementById('editCategoryDescription').value,
+        is_default: document.getElementById('editCategoryDefault').checked
+    };
+
+    fetch(`/config/category/${id}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message) {
+            location.reload();
+        } else {
+            alert(data.error || 'Wystąpił błąd');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Wystąpił błąd podczas aktualizacji kategorii');
+    });
+}
+
+function deleteCategory(id) {
+    if (confirm('Czy na pewno chcesz usunąć tę kategorię?')) {
+        fetch(`/config/category/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                location.reload();
+            } else {
+                alert(data.error || 'Wystąpił błąd');
+            }
+        })
+        .catch(error => console.error('Error:', error));
     }
 }
 </script>
-</div>
 {% endblock %}
