@@ -97,6 +97,30 @@ class Expense(db.Model):
             'rejected': 'danger'
         }.get(self.status, 'secondary')
 
+class SystemLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    action = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.String(500))
+    
+    user = db.relationship('User', backref='logs', lazy=True)
+
+def log_action(action, description=None):
+    """
+    Log an action in the system.
+    """
+    try:
+        log = SystemLog(
+            user_id=current_user.id,
+            action=action,
+            description=description
+        )
+        db.session.add(log)
+        db.session.commit()
+    except Exception as e:
+        print(f"Error logging action: {str(e)}")
+
 @app.template_filter('month_name')
 def month_name_filter(date_str):
     try:
@@ -227,6 +251,10 @@ def add_expense():
             
             db.session.add(expense)
             db.session.commit()
+            
+            log_action('add_expense', 
+                      f'Dodano wydatek (ID: {expense.id}, Kwota: {expense.amount} {expense.currency})')
+            
             flash('Wydatek został dodany pomyślnie.', 'success')
             return redirect(url_for('index'))
             
@@ -261,6 +289,8 @@ def edit_expense(expense_id):
             expense.description = request.form.get('description')
             expense.category_id = int(request.form.get('category'))
             expense.card_id = int(request.form.get('card_id'))
+	    old_amount = expense.amount
+            old_currency = expense.currency
             
             if 'receipt' in request.files:
                 file = request.files['receipt']
@@ -269,6 +299,10 @@ def edit_expense(expense_id):
                     expense.receipt_filename = file.filename
             
             db.session.commit()
+            
+            log_action('edit_expense', 
+                      f'Zmieniono wydatek (ID: {expense.id}) z {old_amount} {old_currency} na {expense.amount} {expense.currency}')
+            
             flash('Wydatek został zaktualizowany.', 'success')
             return redirect(url_for('index'))
             
@@ -281,6 +315,26 @@ def edit_expense(expense_id):
                          expense=expense,
                          categories=categories,
                          cards=cards)
+
+@app.route('/delete_expense/<int:expense_id>', methods=['POST'])
+@login_required
+def delete_expense(expense_id):
+    expense = Expense.query.get_or_404(expense_id)
+    
+    # Check if user has permission to delete
+    if not current_user.is_admin and expense.user_id != current_user.id:
+        return jsonify({'error': 'Brak uprawnień do usunięcia tego wydatku'}), 403
+    
+    try:
+        log_action('delete_expense', f'Usunięto wydatek (ID: {expense.id}, Kwota: {expense.amount} {expense.currency})')
+        db.session.delete(expense)
+        db.session.commit()
+        flash('Wydatek został usunięty', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Wystąpił błąd podczas usuwania wydatku: {str(e)}', 'danger')
+    
+    return redirect(url_for('index'))
 
 @app.route('/download_receipt/<int:expense_id>')
 @login_required
@@ -566,6 +620,19 @@ def manage_category(category_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 400
+
+@app.route('/logs')
+@login_required
+def view_logs():
+    if not current_user.is_admin:
+        flash('Brak dostępu', 'danger')
+        return redirect(url_for('index'))
+    
+    page = request.args.get('page', 1, type=int)
+    logs = SystemLog.query.order_by(SystemLog.timestamp.desc())\
+        .paginate(page=page, per_page=50, error_out=False)
+    
+    return render_template('logs.html', logs=logs)
 
 @app.route('/export_expenses')
 @login_required
