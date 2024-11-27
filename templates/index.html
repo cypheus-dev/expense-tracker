@@ -104,6 +104,12 @@
                                     <i class="bi bi-pencil"></i>
                                 </a>
                                 {% endif %}
+                                {% if current_user.is_admin or expense.user_id == current_user.id %}
+                                <button onclick="deleteExpense({{ expense.id }})" 
+                                        class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                {% endif %}
                                 {% if current_user.is_accountant and expense.status == 'pending' %}
                                 <button class="btn btn-sm btn-outline-success approve-expense" 
                                         onclick="approveExpense({{ expense.id }})">
@@ -165,6 +171,18 @@ function approveExpense(expenseId) {
         }
     })
     .catch(error => console.error('Error:', error));
+}
+function deleteExpense(expenseId) {
+    if (confirm('Czy na pewno chcesz usunąć ten wydatek?')) {
+        fetch(`/delete_expense/${expenseId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).then(() => {
+            window.location.reload();
+        });
+    }
 }
 </script>
 {% endblock %}
