@@ -289,7 +289,7 @@ def edit_expense(expense_id):
             expense.description = request.form.get('description')
             expense.category_id = int(request.form.get('category'))
             expense.card_id = int(request.form.get('card_id'))
-	    old_amount = expense.amount
+            old_amount = expense.amount
             old_currency = expense.currency
             
             if 'receipt' in request.files:
