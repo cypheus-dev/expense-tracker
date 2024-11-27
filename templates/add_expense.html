@@ -28,11 +28,11 @@
                                 <select name="card_id" class="form-select" required onchange="updateCurrency(this)">
                                     <option value="">Wybierz kartę...</option>
                                     {% for card in cards %}
-                                    {% if card.is_active %}
-                                    <option value="{{ card.id }}" data-currency="{{ card.currency }}">
+                                    <option value="{{ card.id }}" 
+                                            data-currency="{{ card.currency }}"
+                                            {% if default_card and card.id == default_card.id %}selected{% endif %}>
                                         {{ card.name }} ({{ card.currency }})
                                     </option>
-                                    {% endif %}
                                     {% endfor %}
                                 </select>
                             </div>
@@ -44,7 +44,8 @@
                         <select name="category" class="form-select" required>
                             <option value="">Wybierz kategorię...</option>
                             {% for category in categories %}
-                            <option value="{{ category.id }}" {% if category.is_default %}selected{% endif %}>
+                            <option value="{{ category.id }}"
+                                    {% if default_category and category.id == default_category.id %}selected{% endif %}>
                                 {{ category.name }}
                             </option>
                             {% endfor %}
