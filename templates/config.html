@@ -475,37 +475,46 @@ function updateCard() {
         },
         body: JSON.stringify(data)
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => Promise.reject(err));
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.message) {
-            location.reload();
-        } else {
-            alert(data.error || 'Wystąpił błąd');
+            window.location.reload();
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Wystąpił błąd podczas aktualizacji karty');
+        alert(error.error || 'Wystąpił błąd podczas aktualizacji karty');
     });
 }
 
 function deleteCard(id) {
-    if (confirm('Czy na pewno chcesz usunąć tę kartę?')) {
+    if (confirm('Czy na pewno chcesz usunąć tę kartę? Ta operacja jest nieodwracalna.')) {
         fetch(`/config/card/${id}`, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json'
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => Promise.reject(err));
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.message) {
-                location.reload();
-            } else {
-                alert(data.error || 'Wystąpił błąd');
+                window.location.reload();
             }
         })
-        .catch(error => console.error('Error:', error));
+        .catch(error => {
+            console.error('Error:', error);
+            alert(error.error || 'Wystąpił błąd podczas usuwania karty');
+        });
     }
 }
 
@@ -533,17 +542,20 @@ function updateCategory() {
         },
         body: JSON.stringify(data)
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => Promise.reject(err));
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.message) {
-            location.reload();
-        } else {
-            alert(data.error || 'Wystąpił błąd');
+            window.location.reload();
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Wystąpił błąd podczas aktualizacji kategorii');
+        alert(error.error || 'Wystąpił błąd podczas aktualizacji kategorii');
     });
 }
 
