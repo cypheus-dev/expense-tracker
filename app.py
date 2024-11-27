@@ -477,13 +477,20 @@ def manage_card(card_id):
     card = PaymentCard.query.get_or_404(card_id)
     
     if request.method == 'DELETE':
+        # Allow deletion if card is not active and has no expenses
+        if card.is_active:
+            return jsonify({'error': 'Nie można usunąć aktywnej karty. Najpierw dezaktywuj kartę.'}), 400
         if Expense.query.filter_by(card_id=card_id).first():
             return jsonify({'error': 'Nie można usunąć karty, która jest używana'}), 400
         db.session.delete(card)
+        db.session.commit()
+        return jsonify({'message': 'Karta została usunięta'})
     else:  # POST
         data = request.get_json()
+        
+        # Set default card before updating current card
         if data.get('is_default'):
-            PaymentCard.query.update({'is_default': False})
+            PaymentCard.query.filter(PaymentCard.id != card_id).update({'is_default': False})
             db.session.flush()
         
         card.name = data.get('name', card.name)
@@ -491,7 +498,7 @@ def manage_card(card_id):
         card.description = data.get('description', card.description)
         card.is_active = data.get('is_active', card.is_active)
         card.is_default = data.get('is_default', card.is_default)
-    
+
     try:
         db.session.commit()
         return jsonify({'message': 'Operacja zakończona sukcesem'})
@@ -543,14 +550,16 @@ def manage_category(category_id):
         db.session.delete(category)
     else:  # POST
         data = request.get_json()
+        
+        # Set default category before updating current category
         if data.get('is_default'):
-            Category.query.update({'is_default': False})
+            Category.query.filter(Category.id != category_id).update({'is_default': False})
             db.session.flush()
         
         category.name = data.get('name', category.name)
         category.description = data.get('description', category.description)
         category.is_default = data.get('is_default', category.is_default)
-    
+
     try:
         db.session.commit()
         return jsonify({'message': 'Operacja zakończona sukcesem'})
