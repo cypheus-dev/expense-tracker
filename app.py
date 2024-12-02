@@ -340,6 +340,7 @@ def edit_expense(expense_id):
 
     cards = PaymentCard.query.filter_by(is_active=True).all()
     categories = Category.query.all()
+    currencies = Currency.choices()  # Dodajemy listę walut
     
     if request.method == 'POST':
         try:
@@ -374,7 +375,8 @@ def edit_expense(expense_id):
     return render_template('edit_expense.html', 
                          expense=expense,
                          categories=categories,
-                         cards=cards)
+                         cards=cards,
+                         currencies=currencies)  # Przekazujemy waluty do szablonu
 
 @app.route('/delete_expense/<int:expense_id>', methods=['POST'])
 @login_required
