@@ -1,36 +1,39 @@
 {% extends "base.html" %}
 {% block content %}
+
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-plus-circle"></i> Dodaj nowy wydatek</h5>
+                <h5 class="mb-0">Dodaj nowy wydatek</h5>
             </div>
+
             <div class="card-body">
-                <form method="POST" enctype="multipart/form-data" class="needs-validation" novalidate>
+                <form method="POST" enctype="multipart/form-data">
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label">Kwota</label>
+                                <label for="amount" class="form-label">Kwota</label>
                                 <div class="input-group">
-                                    <input type="number" step="0.01" name="amount" 
-                                           class="form-control" required min="0.01">
-                                    <select name="currency" class="form-select" style="max-width: 100px;" id="currencySelect">
-                                        <option value="PLN">PLN</option>
-                                        <option value="EUR">EUR</option>
+                                    <input type="number" step="0.01" class="form-control" id="amount" name="amount" required>
+                                    <select class="form-select" id="currency" name="currency" style="max-width: 120px;">
+                                        {% for value, label in currencies %}
+                                        <option value="{{ value }}" {% if value == default_currency %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                        {% endfor %}
                                     </select>
                                 </div>
                             </div>
                         </div>
+
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label">Karta płatnicza</label>
-                                <select name="card_id" class="form-select" required onchange="updateCurrency(this)">
+                                <label for="card_id" class="form-label">Karta płatnicza</label>
+                                <select class="form-select" id="card_id" name="card_id" required>
                                     <option value="">Wybierz kartę...</option>
                                     {% for card in cards %}
-                                    <option value="{{ card.id }}" 
-                                            data-currency="{{ card.currency }}"
-                                            {% if default_card and card.id == default_card.id %}selected{% endif %}>
+                                    <option value="{{ card.id }}" {% if default_card and card.id == default_card.id %}selected{% endif %}>
                                         {{ card.name }} ({{ card.currency }})
                                     </option>
                                     {% endfor %}
@@ -40,12 +43,11 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Kategoria</label>
-                        <select name="category" class="form-select" required>
+                        <label for="category" class="form-label">Kategoria</label>
+                        <select class="form-select" id="category" name="category" required>
                             <option value="">Wybierz kategorię...</option>
                             {% for category in categories %}
-                            <option value="{{ category.id }}"
-                                    {% if default_category and category.id == default_category.id %}selected{% endif %}>
+                            <option value="{{ category.id }}" {% if default_category and category.id == default_category.id %}selected{% endif %}>
                                 {{ category.name }}
                             </option>
                             {% endfor %}
@@ -53,33 +55,26 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Data</label>
-                        <input type="date" name="date" class="form-control" 
-                               required value="{{ today }}">
+                        <label for="date" class="form-label">Data</label>
+                        <input type="date" class="form-control" id="date" name="date" value="{{ today }}" required>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Opis</label>
-                        <textarea name="description" class="form-control" 
-                                  rows="3" required></textarea>
+                        <label for="description" class="form-label">Opis</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Faktura/Paragon</label>
-                        <input type="file" name="receipt" class="form-control" 
-                               accept=".pdf,.jpg,.jpeg,.png">
+                        <label for="receipt" class="form-label">Faktura/Paragon</label>
+                        <input type="file" class="form-control" id="receipt" name="receipt">
                         <div class="form-text">
                             Akceptowane formaty: PDF, JPG, PNG. Max rozmiar: 5MB
                         </div>
                     </div>
 
                     <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-save"></i> Zapisz wydatek
-                        </button>
-                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
-                            <i class="bi bi-x-circle"></i> Anuluj
-                        </a>
+                        <button type="submit" class="btn btn-primary">Zapisz wydatek</button>
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Anuluj</a>
                     </div>
                 </form>
             </div>
@@ -89,28 +84,79 @@
 
 <script>
 // Aktualizacja waluty na podstawie wybranej karty
-function updateCurrency(cardSelect) {
-    const selectedOption = cardSelect.options[cardSelect.selectedIndex];
-    const currency = selectedOption.dataset.currency;
-    if (currency) {
-        document.getElementById('currencySelect').value = currency;
+document.getElementById('card_id').addEventListener('change', function() {
+    const cardId = this.value;
+    if (cardId) {
+        fetch(`/get_card_currency/${cardId}`)
+            .then(response => response.json())
+            .then(data => {
+                const currencySelect = document.getElementById('currency');
+                for (let i = 0; i < currencySelect.options.length; i++) {
+                    if (currencySelect.options[i].value === data.currency) {
+                        currencySelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            })
+            .catch(error => console.error('Error:', error));
     }
-}
+});
 
 // Walidacja formularza
-(function () {
-    'use strict'
-    var forms = document.querySelectorAll('.needs-validation')
-    Array.prototype.slice.call(forms)
-        .forEach(function (form) {
-            form.addEventListener('submit', function (event) {
-                if (!form.checkValidity()) {
-                    event.preventDefault()
-                    event.stopPropagation()
-                }
-                form.classList.add('was-validated')
-            }, false)
-        })
-})()
+document.querySelector('form').addEventListener('submit', function(event) {
+    const amount = document.getElementById('amount').value;
+    const category = document.getElementById('category').value;
+    const date = document.getElementById('date').value;
+    const card = document.getElementById('card_id').value;
+    
+    let isValid = true;
+    let errorMessage = '';
+    
+    // Sprawdzenie kwoty
+    if (!amount || parseFloat(amount) <= 0) {
+        errorMessage += 'Kwota musi być większa od 0\n';
+        isValid = false;
+    }
+    
+    // Sprawdzenie kategorii
+    if (!category) {
+        errorMessage += 'Wybierz kategorię\n';
+        isValid = false;
+    }
+    
+    // Sprawdzenie daty
+    if (!date) {
+        errorMessage += 'Wybierz datę\n';
+        isValid = false;
+    }
+    
+    // Sprawdzenie karty
+    if (!card) {
+        errorMessage += 'Wybierz kartę płatniczą\n';
+        isValid = false;
+    }
+    
+    // Sprawdzenie pliku
+    const fileInput = document.getElementById('receipt');
+    if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        if (file.size > 5 * 1024 * 1024) { // 5MB
+            errorMessage += 'Plik jest za duży (maksymalnie 5MB)\n';
+            isValid = false;
+        }
+        
+        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+        if (!allowedTypes.includes(file.type)) {
+            errorMessage += 'Niedozwolony format pliku (dozwolone: PDF, JPG, PNG)\n';
+            isValid = false;
+        }
+    }
+    
+    if (!isValid) {
+        event.preventDefault();
+        alert(errorMessage);
+    }
+});
 </script>
+
 {% endblock %}
