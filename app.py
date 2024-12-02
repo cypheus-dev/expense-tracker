@@ -40,10 +40,64 @@ login_manager.login_view = 'login'
 class Currency(Enum):
     PLN = "PLN"
     EUR = "EUR"
+    USD = "USD"
+    BGN = "BGN"  # Bulgarian Lev
+    CHF = "CHF"  # Swiss Franc
+    CZK = "CZK"  # Czech Koruna
+    DKK = "DKK"  # Danish Krone
+    GBP = "GBP"  # British Pound
+    HRK = "HRK"  # Croatian Kuna
+    HUF = "HUF"  # Hungarian Forint
+    ISK = "ISK"  # Icelandic Króna
+    NOK = "NOK"  # Norwegian Krone
+    RON = "RON"  # Romanian Leu
+    SEK = "SEK"  # Swedish Krona
     
     @classmethod
     def choices(cls):
-        return [(currency.value, currency.value) for currency in cls]
+        # Priorytetowe waluty
+        priority_currencies = ['PLN', 'EUR', 'USD']
+        
+        # Sortowanie: najpierw priorytetowe, potem reszta alfabetycznie
+        priority = [(currency, currency) for currency in priority_currencies]
+        others = sorted(
+            [(currency.value, currency.value) for currency in cls 
+             if currency.value not in priority_currencies],
+            key=lambda x: x[0]
+        )
+        
+        return priority + others
+
+    @classmethod
+    def get_symbol(cls, currency_code):
+        symbols = {
+            'PLN': 'zł',
+            'EUR': '€',
+            'USD': '$',
+            'GBP': '£',
+            'CHF': 'Fr.',
+            'CZK': 'Kč',
+            'DKK': 'kr',
+            'SEK': 'kr',
+            'NOK': 'kr',
+            'HUF': 'Ft',
+            'RON': 'lei',
+            'BGN': 'лв',
+            'HRK': 'kn',
+            'ISK': 'kr'
+        }
+        return symbols.get(currency_code, currency_code)
+
+# Modyfikacja filtra format_currency
+def format_currency(amount, currency):
+    symbol = Currency.get_symbol(currency)
+    formatted_amount = f"{amount:.2f}"
+    
+    # Specjalne formatowanie dla różnych walut
+    if currency in ['PLN', 'CZK', 'HUF']:
+        return f"{formatted_amount} {symbol}"  # Symbol po kwocie
+    else:
+        return f"{symbol}{formatted_amount}"   # Symbol przed kwotą
 
 class PaymentCard(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -222,10 +276,14 @@ def add_user():
 def add_expense():
     cards = PaymentCard.query.filter_by(is_active=True).all()
     categories = Category.query.all()
+    currencies = Currency.choices()
     
     # Get default card and category
     default_card = PaymentCard.query.filter_by(is_default=True, is_active=True).first()
     default_category = Category.query.filter_by(is_default=True).first()
+    
+    # Get default currency from the default card
+    default_currency = default_card.currency if default_card else 'PLN'
     
     if request.method == 'POST':
         try:
@@ -265,8 +323,10 @@ def add_expense():
     return render_template('add_expense.html', 
                          categories=categories,
                          cards=cards,
+                         currencies=currencies,
                          default_card=default_card,
                          default_category=default_category,
+                         default_currency=default_currency,
                          today=datetime.now().strftime('%Y-%m-%d'))
 
 @app.route('/edit_expense/<int:expense_id>', methods=['GET', 'POST'])
@@ -559,6 +619,12 @@ def manage_card(card_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 400
+
+@app.route('/get_card_currency/<int:card_id>')
+@login_required
+def get_card_currency(card_id):
+    card = PaymentCard.query.get_or_404(card_id)
+    return jsonify({'currency': card.currency})
 
 @app.route('/config/category', methods=['POST'])
 @login_required
