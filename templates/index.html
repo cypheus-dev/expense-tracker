@@ -42,32 +42,18 @@
                 <table class="table table-striped table-hover mb-0">
                     <thead>
                         <tr>
-            <th>
-                Data transakcji
-                <a href="{{ url_for('index', sort='date', order='asc' if sort_by == 'date' and order == 'desc' else 'desc', page=pagination.page) }}" class="text-dark">
-                    {% if sort_by == 'date' %}
-                        {% if order == 'asc' %}↑{% else %}↓{% endif %}
-                    {% endif %}
-                </a>
-            </th>
-            <th>
-                Kwota
-                <a href="{{ url_for('index', sort='amount', order='asc' if sort_by == 'amount' and order == 'desc' else 'desc', page=pagination.page) }}" class="text-dark">
-                    {% if sort_by == 'amount' %}
-                        {% if order == 'asc' %}↑{% else %}↓{% endif %}
-                    {% endif %}
-                </a>
-            </th>
-            <th>Karta</th>
-            <th>Kategoria</th>
-            <th>Opis</th>
-            {% if current_user.is_accountant %}
-            <th>Użytkownik</th>
-            <th>Status</th>
-            {% endif %}
-            <th>Faktura</th>
-            <th>Akcje</th>
-        </tr>
+                            <th>Data transakcji</th>
+                            <th>Kwota</th>
+                            <th>Karta</th>
+                            <th>Kategoria</th>
+                            <th>Opis</th>
+                            {% if current_user.is_accountant %}
+                            <th>Użytkownik</th>
+                            <th>Status</th>
+                            {% endif %}
+                            <th>Faktura</th>
+                            <th>Akcje</th>
+                        </tr>
                     </thead>
                     <tbody>
                         {% for expense in month_expenses|sort(attribute='date', reverse=true) %}
