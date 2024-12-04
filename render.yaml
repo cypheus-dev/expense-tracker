@@ -2,8 +2,17 @@ services:
   - type: web
     name: expense-tracker
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    buildCommand: |
+     pip install -r requirements.txt
+     flask db upgrade
+     python -c "
+     from app import app, db
+     with app.app_context():
+         db.session.execute('ALTER TABLE expense DROP COLUMN IF EXISTS category_id;')
+         db.session.execute('DROP TABLE IF EXISTS category CASCADE;')
+         db.session.commit()
+     "    
+	startCommand: gunicorn app:app
     envVars:
       - key: FLASK_ENV
         value: production

@@ -41,19 +41,6 @@
                             </div>
                         </div>
                     </div>
-
-                    <div class="mb-3">
-                        <label for="category" class="form-label">Kategoria</label>
-                        <select class="form-select" id="category" name="category" required>
-                            <option value="">Wybierz kategorię...</option>
-                            {% for category in categories %}
-                            <option value="{{ category.id }}" {% if default_category and category.id == default_category.id %}selected{% endif %}>
-                                {{ category.name }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
                     <div class="mb-3">
                         <label for="date" class="form-label">Data transakcji</label>
                         <input type="date" class="form-control" id="date" name="date" value="{{ today }}" required>

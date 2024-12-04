@@ -123,54 +123,7 @@
     </div>
 
     <!-- Kategorie wydatków -->
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <i class="bi bi-tags"></i> Kategorie wydatków
-                </h5>
-                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
-                    <i class="bi bi-plus-circle"></i> Dodaj kategorię
-                </button>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Nazwa</th>
-                                <th>Opis</th>
-                                <th>Domyślna</th>
-                                <th>Akcje</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for category in categories %}
-                            <tr>
-                                <td>{{ category.name }}</td>
-                                <td>{{ category.description }}</td>
-                                <td>
-                                    {% if category.is_default %}
-                                    <span class="badge bg-primary">Domyślna</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary" 
-                                            onclick="editCategory({{ category.id }}, '{{ category.name }}', 
-                                                              '{{ category.description }}', {{ category.is_default|tojson }})">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory({{ category.id }})">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+    
     </div>
 </div>
 <!-- Modal dodawania użytkownika -->
@@ -321,68 +274,6 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
                 <button type="button" class="btn btn-primary" onclick="updateCard()">Zapisz zmiany</button>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- Modal dodawania kategorii -->
-<div class="modal fade" id="addCategoryModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form method="POST" action="{{ url_for('add_category') }}">
-                <div class="modal-header">
-                    <h5 class="modal-title">Dodaj kategorię</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Nazwa</label>
-                        <input type="text" name="name" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Opis</label>
-                        <textarea name="description" class="form-control" rows="2"></textarea>
-                    </div>
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="isDefaultCategory" name="is_default">
-                        <label class="form-check-label" for="isDefaultCategory">Kategoria domyślna</label>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
-                    <button type="submit" class="btn btn-primary">Dodaj</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal edycji kategorii -->
-<div class="modal fade" id="editCategoryModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Edytuj kategorię</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="editCategoryId">
-                <div class="mb-3">
-                    <label class="form-label">Nazwa</label>
-                    <input type="text" id="editCategoryName" class="form-control" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Opis</label>
-                    <textarea id="editCategoryDescription" class="form-control" rows="2"></textarea>
-                </div>
-                <div class="mb-3 form-check">
-                    <input type="checkbox" class="form-check-input" id="editCategoryDefault">
-                    <label class="form-check-label">Kategoria domyślna</label>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
-                <button type="button" class="btn btn-primary" onclick="updateCategory()">Zapisz zmiany</button>
             </div>
         </div>
     </div>

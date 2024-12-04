@@ -45,7 +45,6 @@
                             <th>Data transakcji</th>
                             <th>Kwota</th>
                             <th>Karta</th>
-                            <th>Kategoria</th>
                             <th>Opis</th>
                             {% if current_user.is_accountant %}
                             <th>Użytkownik</th>
@@ -67,7 +66,6 @@
                                     {{ expense.card.name if expense.card else 'Brak karty' }}
                                 </span>
                             </td>
-                            <td>{{ expense.category.name if expense.category else '' }}</td>
                             <td>{{ expense.description }}</td>
                             {% if current_user.is_accountant %}
                             <td>{{ expense.user.username }}</td>
