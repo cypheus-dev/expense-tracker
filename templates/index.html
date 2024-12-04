@@ -36,14 +36,6 @@
             <div class="card-header bg-light">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0">{{ month_key|datetime('%Y-%m')|month_name }}</h6>
-                    <div>
-                        <span class="badge bg-primary">
-                            Suma PLN: {{ month_expenses|sum_by_currency('PLN')|format_currency('PLN') }}
-                        </span>
-                        <span class="badge bg-info ms-2">
-                            Suma EUR: {{ month_expenses|sum_by_currency('EUR')|format_currency('EUR') }}
-                        </span>
-                    </div>
                 </div>
             </div>
             <div class="table-responsive">
@@ -68,11 +60,7 @@
                         <tr>
                             <td>{{ expense.date.strftime('%Y-%m-%d') }}</td>
                             <td class="text-end">
-                                {% if expense.currency == 'PLN' %}
-                                {{ "%.2f" % expense.amount }} zł
-                                {% else %}
-                                {{ "%.2f" % expense.amount }} €
-                                {% endif %}
+                                {{ expense.amount|format_currency(expense.currency) }}
                             </td>
                             <td>
                                 <span class="badge bg-secondary">
