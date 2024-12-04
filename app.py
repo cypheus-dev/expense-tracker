@@ -725,7 +725,7 @@ def export_expenses():
     amount_format_eur = workbook.add_format({'num_format': '#,##0.00 "€"'})
 
     # Nagłówki
-    headers = ['Data', 'Użytkownik', 'Karta', 'Kategoria', 'Opis', 'Kwota', 'Waluta', 'Status']
+    headers = ['Data transakcji', 'Użytkownik', 'Karta', 'Kategoria', 'Opis', 'Kwota', 'Waluta', 'Status']
     for col, header in enumerate(headers):
         worksheet.write(0, col, header, header_format)
 
