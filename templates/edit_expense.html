@@ -55,17 +55,17 @@
                     </div>
 
                     <div class="mb-3">
-                        <label for="date" class="form-label">Data</label>
+                        <label for="date" class="form-label">Data transakcji</label>
                         <input type="date" class="form-control" id="date" name="date" value="{{ expense.date.strftime('%Y-%m-%d') }}" required>
                     </div>
 
                     <div class="mb-3">
-                        <label for="description" class="form-label">Opis</label>
+                        <label for="description" class="form-label">Opis (do kogo płatność oraz za co np. nr faktury, nr rezerwacji, nr imprezy)</label>
                         <textarea class="form-control" id="description" name="description" rows="3">{{ expense.description }}</textarea>
                     </div>
 
                     <div class="mb-3">
-                        <label for="receipt" class="form-label">Faktura/Paragon</label>
+                        <label for="receipt" class="form-label">Dodaj plik z fakturą</label>
                         {% if expense.receipt_filename %}
                         <div class="mb-2">
                             <span class="text-muted">Obecny plik: </span>
