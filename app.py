@@ -88,17 +88,6 @@ class Currency(Enum):
         }
         return symbols.get(currency_code, currency_code)
 
-# Modyfikacja filtra format_currency
-def format_currency(amount, currency):
-    symbol = Currency.get_symbol(currency)
-    formatted_amount = f"{amount:.2f}"
-    
-    # Specjalne formatowanie dla różnych walut
-    if currency in ['PLN', 'CZK', 'HUF']:
-        return f"{formatted_amount} {symbol}"  # Symbol po kwocie
-    else:
-        return f"{symbol}{formatted_amount}"   # Symbol przed kwotą
-
 class PaymentCard(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -188,12 +177,8 @@ def sum_by_currency(expenses, currency):
     return sum(expense.amount for expense in expenses if expense.currency == currency)
 
 @app.template_filter('format_currency')
-def format_currency(amount, currency):
-    if currency == 'PLN':
-        return f"{amount:.2f} zł"
-    elif currency == 'EUR':
-        return f"{amount:.2f} €"
-    return f"{amount:.2f}"
+def format_currency_filter(amount, currency):
+    return f"{amount:.2f} {currency}"
 
 @app.template_filter('datetime')
 def datetime_filter(value, format='%Y-%m-%d'):
@@ -721,8 +706,7 @@ def export_expenses():
     })
     
     date_format = workbook.add_format({'num_format': 'yyyy-mm-dd'})
-    amount_format_pln = workbook.add_format({'num_format': '#,##0.00 "zł"'})
-    amount_format_eur = workbook.add_format({'num_format': '#,##0.00 "€"'})
+    amount_format = workbook.add_format({'num_format': '#,##0.00'})
 
     # Nagłówki
     headers = ['Data transakcji', 'Użytkownik', 'Karta', 'Kategoria', 'Opis', 'Kwota', 'Waluta', 'Status']
@@ -737,10 +721,7 @@ def export_expenses():
         worksheet.write(row, 2, expense.card.name if expense.card else '')
         worksheet.write(row, 3, expense.category.name if expense.category else '')
         worksheet.write(row, 4, expense.description)
-        if expense.currency == 'PLN':
-            worksheet.write_number(row, 5, expense.amount, amount_format_pln)
-        else:
-            worksheet.write_number(row, 5, expense.amount, amount_format_eur)
+	worksheet.write_number(row, 5, expense.amount, amount_format)
         worksheet.write(row, 6, expense.currency)
         worksheet.write(row, 7, expense.status)
 
@@ -759,18 +740,16 @@ def export_expenses():
     summary_row = len(expenses) + 2
     worksheet.write(summary_row, 0, "Podsumowanie", header_format)
     
-    # Suma PLN
-    worksheet.write(summary_row, 1, "Suma PLN:")
-    worksheet.write_formula(summary_row, 2, 
-        f'=SUMIFS(F2:F{summary_row},G2:G{summary_row},"PLN")', 
-        amount_format_pln)
-    
-    # Suma EUR
-    worksheet.write(summary_row + 1, 1, "Suma EUR:")
-    worksheet.write_formula(summary_row + 1, 2, 
-        f'=SUMIFS(F2:F{summary_row},G2:G{summary_row},"EUR")', 
-        amount_format_eur)
-
+    # Sumy dla każdej waluty
+    currencies = set(e.currency for e in expenses)
+    for i, curr in enumerate(currencies):
+        worksheet.write(summary_row + i, 1, f"Suma {curr}:")
+        worksheet.write_formula(
+            summary_row + i, 2, 
+            f'=SUMIFS(F2:F{summary_row},G2:G{summary_row},"{curr}")',
+            amount_format
+        )
+	
     workbook.close()
     output.seek(0)
 
