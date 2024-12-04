@@ -721,7 +721,7 @@ def export_expenses():
         worksheet.write(row, 2, expense.card.name if expense.card else '')
         worksheet.write(row, 3, expense.category.name if expense.category else '')
         worksheet.write(row, 4, expense.description)
-	worksheet.write_number(row, 5, expense.amount, amount_format)
+        worksheet.write_number(row, 5, expense.amount, amount_format)
         worksheet.write(row, 6, expense.currency)
         worksheet.write(row, 7, expense.status)
 
