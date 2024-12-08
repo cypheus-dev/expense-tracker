@@ -262,14 +262,19 @@ def add_expense():
     
     if request.method == 'POST':
         try:
-            expense = Expense(
-                date=datetime.strptime(request.form['date'], '%Y-%m-%d'),
-                amount=float(request.form['amount']),
-                currency=request.form['currency'],
-                description=request.form['description'],
-                card_id=int(request.form['card_id']),
-                user_id=current_user.id
-            )
+            expense_date = datetime.strptime(request.form['date'], '%Y-%m-%d')
+                        if expense_date > datetime.now():
+                            flash('Data nie może być z przyszłości', 'danger')
+                            return redirect(request.url)
+
+                        expense = Expense(
+                            date=expense_date,
+                            amount=float(request.form['amount']),
+                            currency=request.form['currency'],
+                            description=request.form['description'],
+                            card_id=int(request.form['card_id']),
+                            user_id=current_user.id
+                        )
             
             if 'receipt' in request.files:
                 file = request.files['receipt']
@@ -315,13 +320,18 @@ def edit_expense(expense_id):
     
     if request.method == 'POST':
         try:
-            expense.date = datetime.strptime(request.form.get('date'), '%Y-%m-%d')
-            expense.amount = float(request.form.get('amount'))
-            expense.currency = request.form.get('currency')
-            expense.description = request.form.get('description')
-            expense.card_id = int(request.form.get('card_id'))
-            old_amount = expense.amount
-            old_currency = expense.currency
+            expense_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d')
+                        if expense_date > datetime.now():
+                            flash('Data nie może być z przyszłości', 'danger')
+                            return redirect(request.url)
+
+                        expense.date = expense_date
+                        expense.amount = float(request.form.get('amount'))
+                        expense.currency = request.form.get('currency')
+                        expense.description = request.form.get('description')
+                        expense.card_id = int(request.form.get('card_id'))
+                        old_amount = expense.amount
+                        old_currency = expense.currency
             
             if 'receipt' in request.files:
                 file = request.files['receipt']

@@ -43,7 +43,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="date" class="form-label">Data transakcji</label>
-                        <input type="date" class="form-control" id="date" name="date" value="{{ expense.date.strftime('%Y-%m-%d') }}" required>
+                        <input type="date" class="form-control" id="date" name="date" value="{{ expense.date.strftime('%Y-%m-%d') }}" required max="{{ today }}"  value="{{ expense.date.strftime('%Y-%m-%d') }}">
                     </div>
 
                     <div class="mb-3">
