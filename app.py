@@ -325,13 +325,18 @@ def edit_expense(expense_id):
                 flash('Data nie może być z przyszłości', 'danger')
                 return redirect(request.url)
 
-                expense.date = expense_date
-                expense.amount = float(request.form.get('amount'))
-                expense.currency = request.form.get('currency')
-                expense.description = request.form.get('description')
-                expense.card_id = int(request.form.get('card_id'))
-                old_amount = expense.amount
-                old_currency = expense.currency
+            # Zapisz stare wartości przed zmianą
+            old_amount = expense.amount
+            old_currency = expense.currency
+            
+            # Aktualizuj wartości
+            expense.date = expense_date
+            expense.amount = float(request.form.get('amount'))
+            expense.currency = request.form.get('currency')
+            expense.description = request.form.get('description')
+            expense.card_id = int(request.form.get('card_id'))
+            old_amount = expense.amount
+            old_currency = expense.currency
             
             if 'receipt' in request.files:
                 file = request.files['receipt']
