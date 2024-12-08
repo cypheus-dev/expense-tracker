@@ -256,7 +256,6 @@ def add_expense():
     
     # Get default card and category
     default_card = PaymentCard.query.filter_by(is_default=True, is_active=True).first()
-    default_category = Category.query.filter_by(is_default=True).first()
     
     # Get default currency from the default card
     default_currency = default_card.currency if default_card else 'PLN'
