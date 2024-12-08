@@ -190,19 +190,27 @@ def load_user(user_id):
 def index():
     page = request.args.get('page', 1, type=int)
     per_page = 50  # Zwiększamy ilość wydatków na stronę ze względu na grupowanie
+    sort_direction = request.args.get('sort', 'desc')  # domyślnie sortowanie malejąco
     
+    # Przygotowanie zapytania bazowego
     if current_user.is_accountant:
-        pagination = Expense.query.order_by(Expense.date.desc())\
-            .paginate(page=page, per_page=per_page, error_out=False)
+        query = Expense.query
     else:
-        pagination = Expense.query.filter_by(user_id=current_user.id)\
-            .order_by(Expense.date.desc())\
-            .paginate(page=page, per_page=per_page, error_out=False)
+        query = Expense.query.filter_by(user_id=current_user.id)
+        
+    # Dodanie sortowania
+    if sort_direction == 'asc':
+        query = query.order_by(Expense.date.asc())
+    else:
+        query = query.order_by(Expense.date.desc())
     
-    # Zmieniamy sposób przekazywania danych do szablonu
+    # Paginacja
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    
     return render_template('index.html', 
                          pagination=pagination,
-                         expenses=pagination.items)
+                         expenses=pagination.items,
+                         current_sort=sort_direction)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
