@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_wtf import FlaskForm
+from flask_wtf.csrf import CSRFProtect  # Dodaj ten import na górze pliku
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from io import BytesIO
@@ -8,6 +10,11 @@ from enum import Enum
 import xlsxwriter
 import os
 import locale
+
+
+# Po utworzeniu aplikacji Flask, dodaj:
+csrf = CSRFProtect()
+csrf.init_app(app)
 
 # Ustawienie locale dla polskich nazw miesięcy
 try:
@@ -28,6 +35,10 @@ if database_url and database_url.startswith('postgres://'):
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key')
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///expenses.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Tutaj dodajemy CSRF Protection
+csrf = CSRFProtect()
+csrf.init_app(app)
 
 # Inicjalizacja rozszerzeń
 db = SQLAlchemy()
@@ -132,6 +143,11 @@ class Expense(db.Model):
             'rejected': 'danger'
         }.get(self.status, 'secondary')
 
+# definicja formularza dla CSRF
+class DeleteForm(FlaskForm):
+    """Empty form that just provides CSRF protection"""
+    pass
+
 class SystemLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -233,6 +249,9 @@ def index():
     
     # Paginacja
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    # Create delete form for CSRF protection
+    delete_form = DeleteForm()
     
     return render_template('index.html', 
                          pagination=pagination,
@@ -408,6 +427,12 @@ def edit_expense(expense_id):
 @app.route('/delete_expense/<int:expense_id>', methods=['POST'])
 @login_required
 def delete_expense(expense_id):
+    
+    # Sprawdź CSRF token
+    form = DeleteForm()
+    if not form.validate_on_submit():
+        return jsonify({'error': 'Invalid CSRF token'}), 400
+    
     expense = Expense.query.get_or_404(expense_id)
     
     # Check if user has permission to delete
