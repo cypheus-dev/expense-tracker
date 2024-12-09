@@ -11,11 +11,6 @@ import xlsxwriter
 import os
 import locale
 
-
-# Po utworzeniu aplikacji Flask, dodaj:
-csrf = CSRFProtect()
-csrf.init_app(app)
-
 # Ustawienie locale dla polskich nazw miesięcy
 try:
     locale.setlocale(locale.LC_TIME, 'pl_PL.UTF-8')
