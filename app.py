@@ -214,6 +214,9 @@ def index():
     amount_max = request.args.get('amount_max', type=float)
     user_id = request.args.get('user_id', type=int)
     
+    # Create delete form for CSRF protection
+    delete_form = DeleteForm()  # Dodane - tworzenie formularza
+    
     # Przygotowanie zapytania bazowego
     if current_user.is_accountant:
         query = Expense.query
@@ -222,12 +225,6 @@ def index():
             query = query.filter_by(user_id=user_id)
     else:
         query = query.filter_by(user_id=current_user.id)
-        
-    # Dodanie sortowania
-    if sort_direction == 'asc':
-        query = query.order_by(Expense.date.asc())
-    else:
-        query = query.order_by(Expense.date.desc())
     
     # Filtrowanie po datach
     if date_from:
@@ -241,6 +238,12 @@ def index():
     if amount_max is not None:
         query = query.filter(Expense.amount <= amount_max)
         
+    # Dodanie sortowania
+    if sort_direction == 'asc':
+        query = query.order_by(Expense.date.asc())
+    else:
+        query = query.order_by(Expense.date.desc())
+    
     # Get users list for the filter dropdown (only for accountants)
     users = []
     if current_user.is_accountant:
@@ -248,9 +251,6 @@ def index():
     
     # Paginacja
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-    
-    # Create delete form for CSRF protection
-    delete_form = DeleteForm()
     
     return render_template('index.html', 
                          pagination=pagination,
