@@ -237,7 +237,7 @@ def index():
     return render_template('index.html', 
                          pagination=pagination,
                          expenses=pagination.items,
-                         current_sort=sort_direction
+                         current_sort=sort_direction,
                          users=users,  # Pass users list to template
                          filters={
                              'date_from': date_from,
