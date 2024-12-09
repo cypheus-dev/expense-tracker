@@ -1,12 +1,12 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from flask_wtf import FlaskForm
-from flask_wtf.csrf import CSRFProtect  # Dodaj ten import na górze pliku
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from io import BytesIO
 from enum import Enum
+from flask_wtf import FlaskForm
+from flask_wtf.csrf import CSRFProtect  # Dodaj ten import na górze pliku
 import xlsxwriter
 import os
 import locale
@@ -36,10 +36,6 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key')
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///expenses.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Tutaj dodajemy CSRF Protection
-csrf = CSRFProtect()
-csrf.init_app(app)
-
 # Inicjalizacja rozszerzeń
 db = SQLAlchemy()
 db.init_app(app)
@@ -47,6 +43,14 @@ db.init_app(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+# Tutaj dodajemy CSRF Protection
+csrf = CSRFProtect(app)
+
+# Definicja formularza dla CSRF
+class DeleteForm(FlaskForm):
+    """Empty form that just provides CSRF protection"""
+    pass
 
 class Currency(Enum):
     PLN = "PLN"
