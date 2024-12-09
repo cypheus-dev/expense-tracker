@@ -30,6 +30,8 @@ if database_url and database_url.startswith('postgres://'):
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key')
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///expenses.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['WTF_CSRF_ENABLED'] = True
+app.config['WTF_CSRF_SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key')
 
 # Inicjalizacja rozszerzeń
 db = SQLAlchemy()
@@ -45,7 +47,8 @@ csrf = CSRFProtect(app)
 # Definicja formularza dla CSRF
 class DeleteForm(FlaskForm):
     """Empty form that just provides CSRF protection"""
-    pass
+    class Meta:
+        csrf = True
 
 class Currency(Enum):
     PLN = "PLN"
@@ -252,11 +255,16 @@ def index():
     # Paginacja
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     
+    # Create delete form for CSRF protection
+    delete_form = DeleteForm(meta={'csrf': True})
+    
+    
     return render_template('index.html', 
                          pagination=pagination,
                          expenses=pagination.items,
                          current_sort=sort_direction,
                          users=users,  # Pass users list to template
+                         delete_form=delete_form,
                          filters={
                              'date_from': date_from,
                              'date_to': date_to,
