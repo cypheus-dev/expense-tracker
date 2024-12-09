@@ -192,11 +192,21 @@ def index():
     per_page = 50  # Zwiększamy ilość wydatków na stronę ze względu na grupowanie
     sort_direction = request.args.get('sort', 'desc')  # domyślnie sortowanie malejąco
     
+    # Nowe parametry filtrowania
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    amount_min = request.args.get('amount_min', type=float)
+    amount_max = request.args.get('amount_max', type=float)
+    user_id = request.args.get('user_id', type=int)
+    
     # Przygotowanie zapytania bazowego
     if current_user.is_accountant:
         query = Expense.query
+        # Add user filter only if specified and user is accountant
+        if user_id:
+            query = query.filter_by(user_id=user_id)
     else:
-        query = Expense.query.filter_by(user_id=current_user.id)
+        query = query.filter_by(user_id=current_user.id)
         
     # Dodanie sortowania
     if sort_direction == 'asc':
@@ -204,13 +214,38 @@ def index():
     else:
         query = query.order_by(Expense.date.desc())
     
+    # Filtrowanie po datach
+    if date_from:
+        query = query.filter(Expense.date >= datetime.strptime(date_from, '%Y-%m-%d'))
+    if date_to:
+        query = query.filter(Expense.date <= datetime.strptime(date_to, '%Y-%m-%d'))
+    
+    # Filtrowanie po kwocie
+    if amount_min is not None:
+        query = query.filter(Expense.amount >= amount_min)
+    if amount_max is not None:
+        query = query.filter(Expense.amount <= amount_max)
+        
+    # Get users list for the filter dropdown (only for accountants)
+    users = []
+    if current_user.is_accountant:
+        users = User.query.order_by(User.username).all()
+    
     # Paginacja
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     
     return render_template('index.html', 
                          pagination=pagination,
                          expenses=pagination.items,
-                         current_sort=sort_direction)
+                         current_sort=sort_direction
+                         users=users,  # Pass users list to template
+                         filters={
+                             'date_from': date_from,
+                             'date_to': date_to,
+                             'amount_min': amount_min,
+                             'amount_max': amount_max,
+                             'user_id': user_id  # Add selected user to filters
+                         })
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
