@@ -7,7 +7,7 @@ from io import BytesIO
 from enum import Enum
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect  # Dodaj ten import na górze pliku
-from wtforms import StringField, PasswordField, FloatField, SelectField, DateField, TextAreaField
+from wtforms import StringField, PasswordField, FloatField, SelectField, DateField, TextAreaField, BooleanField
 from wtforms.validators import DataRequired
 import xlsxwriter
 import os
