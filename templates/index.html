@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="space-y-6">
-    <!-- Filters Section -->
+    <!-- Dodaj ukryty formularz z tokenem CSRF -->
+    <form id="csrf-form" style="display: none;">
+        {{ delete_form.csrf_token }}
+    </form>
+	
+	<!-- Filters Section -->
     <div id="filters-section"></div>
     
     <!-- Expenses List -->
@@ -263,16 +268,19 @@ function deleteExpense(expenseId) {
         form.method = 'POST';
         // Konstruujemy URL bezpośrednio
         form.action = `/delete_expense/${expenseId}`;
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const csrfToken = document.querySelector('#csrf-form input[name="csrf_token"]').value;
 		const csrfInput = document.createElement('input');
         csrfInput.type = 'hidden';
         csrfInput.name = 'csrf_token';
-        csrfInput.value = "{{ delete_form.csrf_token._value() }}";
+        csrfInput.value = csrfToken;
         form.appendChild(csrfInput);
         
         document.body.appendChild(form);
         form.submit();
     }
 }
+document.addEventListener('DOMContentLoaded', function() {
+    // Reszta kodu React pozostaje bez zmian...
+});
 </script>
 {% endblock %}
