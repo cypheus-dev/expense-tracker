@@ -10,6 +10,8 @@
 
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data">
+                    {{ form.csrf_token }}
+                    
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -41,9 +43,10 @@
                             </div>
                         </div>
                     </div>
+
                     <div class="mb-3">
                         <label for="date" class="form-label">Data transakcji</label>
-                        <input type="date" class="form-control" id="date" name="date" value="{{ expense.date.strftime('%Y-%m-%d') }}" required max="{{ today }}"  value="{{ expense.date.strftime('%Y-%m-%d') }}">
+                        <input type="date" class="form-control" id="date" name="date" value="{{ expense.date.strftime('%Y-%m-%d') }}" required max="{{ today }}">
                     </div>
 
                     <div class="mb-3">
@@ -101,7 +104,6 @@ document.getElementById('card_id').addEventListener('change', function() {
 // Walidacja formularza
 document.querySelector('form').addEventListener('submit', function(event) {
     const amount = document.getElementById('amount').value;
-    const category = document.getElementById('category').value;
     const date = document.getElementById('date').value;
     const card = document.getElementById('card_id').value;
     
@@ -111,12 +113,6 @@ document.querySelector('form').addEventListener('submit', function(event) {
     // Sprawdzenie kwoty
     if (!amount || parseFloat(amount) <= 0) {
         errorMessage += 'Kwota musi być większa od 0\n';
-        isValid = false;
-    }
-    
-    // Sprawdzenie kategorii
-    if (!category) {
-        errorMessage += 'Wybierz kategorię\n';
         isValid = false;
     }
     

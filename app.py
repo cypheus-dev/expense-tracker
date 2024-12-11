@@ -7,7 +7,7 @@ from io import BytesIO
 from enum import Enum
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect  # Dodaj ten import na górze pliku
-from wtforms import StringField, PasswordField
+from wtforms import StringField, PasswordField, FloatField, SelectField, DateField, TextAreaField
 from wtforms.validators import DataRequired
 import xlsxwriter
 import os
@@ -49,6 +49,20 @@ csrf = CSRFProtect(app)
 class LoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     password = PasswordField('Password', validators=[DataRequired()])
+
+class ExpenseForm(FlaskForm):
+    amount = FloatField('Amount', validators=[DataRequired()])
+    currency = SelectField('Currency', validators=[DataRequired()])
+    card_id = SelectField('Card', coerce=int)
+    date = DateField('Date', validators=[DataRequired()])
+    description = TextAreaField('Description', validators=[DataRequired()])
+    
+class EditExpenseForm(FlaskForm):
+    amount = FloatField('Amount', validators=[DataRequired()])
+    currency = SelectField('Currency', validators=[DataRequired()])
+    card_id = SelectField('Card', coerce=int)
+    date = DateField('Date', validators=[DataRequired()])
+    description = TextAreaField('Description', validators=[DataRequired()])
 
 # Definicja formularza dla CSRF
 class DeleteForm(FlaskForm):
@@ -329,8 +343,13 @@ def add_user():
 @app.route('/add_expense', methods=['GET', 'POST'])
 @login_required
 def add_expense():
+    form = ExpenseForm()
     cards = PaymentCard.query.filter_by(is_active=True).all()
     currencies = Currency.choices()
+    
+    # Ustawienie opcji dla pól wyboru
+    form.card_id.choices = [(card.id, f"{card.name} ({card.currency})") for card in cards]
+    form.currency.choices = Currency.choices()
     
     # Get default card and category
     default_card = PaymentCard.query.filter_by(is_default=True, is_active=True).first()
@@ -338,52 +357,52 @@ def add_expense():
     # Get default currency from the default card
     default_currency = default_card.currency if default_card else 'PLN'
     
-    if request.method == 'POST':
-        try:
-            expense_date = datetime.strptime(request.form['date'], '%Y-%m-%d')
-            if expense_date > datetime.now():
-                flash('Data nie może być z przyszłości', 'danger')
-                return redirect(request.url)
+    if form.validate_on_submit():
+            try:
+                expense_date = form.date.data
+                if expense_date > datetime.now().date():
+                    flash('Data nie może być z przyszłości', 'danger')
+                    return redirect(request.url)
 
-            expense = Expense(
-                date=expense_date,
-                amount=float(request.form['amount']),
-                currency=request.form['currency'],
-                description=request.form['description'],
-                card_id=int(request.form['card_id']),
-                user_id=current_user.id
-            )
+                expense = Expense(
+                    date=expense_date,
+                    amount=form.amount.data,
+                    currency=form.currency.data,
+                    description=form.description.data,
+                    card_id=form.card_id.data,
+                    user_id=current_user.id
+                )
             
-            if 'receipt' in request.files:
-                file = request.files['receipt']
-                if file and file.filename:
-                    if file.content_length and file.content_length > 5 * 1024 * 1024:
-                        flash('Plik jest za duży. Maksymalny rozmiar to 5MB.', 'danger')
-                        return redirect(request.url)
+                if 'receipt' in request.files:
+                    file = request.files['receipt']
+                    if file and file.filename:
+                        if file.content_length and file.content_length > 5 * 1024 * 1024:
+                            flash('Plik jest za duży. Maksymalny rozmiar to 5MB.', 'danger')
+                            return redirect(request.url)
                     
-                    expense.receipt_data = file.read()
-                    expense.receipt_filename = file.filename
+                        expense.receipt_data = file.read()
+                        expense.receipt_filename = file.filename
             
-            db.session.add(expense)
-            db.session.commit()
+                db.session.add(expense)
+                db.session.commit()
             
-            log_action('add_expense', 
-                      f'Dodano wydatek (ID: {expense.id}, Kwota: {expense.amount} {expense.currency})')
+                log_action('add_expense', 
+                          f'Dodano wydatek (ID: {expense.id}, Kwota: {expense.amount} {expense.currency})')
             
-            flash('Wydatek został dodany pomyślnie.', 'success')
-            return redirect(url_for('index'))
+                flash('Wydatek został dodany pomyślnie.', 'success')
+                return redirect(url_for('index'))
             
-        except Exception as e:
-            flash(f'Wystąpił błąd: {str(e)}', 'danger')
-            return redirect(request.url)
-            
-    return render_template('add_expense.html', 
-                         cards=cards,
-                         currencies=currencies,
-                         default_card=default_card,
-                         default_currency=default_currency,
-                         today=datetime.now().strftime('%Y-%m-%d'))
-
+            except Exception as e:
+                flash(f'Wystąpił błąd: {str(e)}', 'danger')
+                return redirect(request.url)
+    
+        return render_template('add_expense.html', 
+                             form=form,
+                             cards=cards,
+                             default_card=default_card,
+                             default_currency=default_card.currency if default_card else 'PLN',
+                             today=datetime.now().strftime('%Y-%m-%d'))
+                             
 @app.route('/edit_expense/<int:expense_id>', methods=['GET', 'POST'])
 @login_required
 def edit_expense(expense_id):
@@ -393,13 +412,18 @@ def edit_expense(expense_id):
         flash('Brak dostępu', 'danger')
         return redirect(url_for('index'))
 
+    form = EditExpenseForm(obj=expense)
     cards = PaymentCard.query.filter_by(is_active=True).all()
-    currencies = Currency.choices()  # Dodajemy listę walut
+    currencies = Currency.choices()
     
-    if request.method == 'POST':
+    # Ustawienie opcji dla pól wyboru
+    form.card_id.choices = [(card.id, f"{card.name} ({card.currency})") for card in cards]
+    form.currency.choices = currencies
+    
+    if form.validate_on_submit():
         try:
-            expense_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d')
-            if expense_date > datetime.now():
+            expense_date = form.date.data
+            if expense_date > datetime.now().date():
                 flash('Data nie może być z przyszłości', 'danger')
                 return redirect(request.url)
 
@@ -409,12 +433,10 @@ def edit_expense(expense_id):
             
             # Aktualizuj wartości
             expense.date = expense_date
-            expense.amount = float(request.form.get('amount'))
-            expense.currency = request.form.get('currency')
-            expense.description = request.form.get('description')
-            expense.card_id = int(request.form.get('card_id'))
-            old_amount = expense.amount
-            old_currency = expense.currency
+            expense.amount = form.amount.data
+            expense.currency = form.currency.data
+            expense.description = form.description.data
+            expense.card_id = form.card_id.data
             
             if 'receipt' in request.files:
                 file = request.files['receipt']
@@ -436,10 +458,12 @@ def edit_expense(expense_id):
             return redirect(url_for('edit_expense', expense_id=expense_id))
     
     return render_template('edit_expense.html', 
+                         form=form,
                          expense=expense,
                          cards=cards,
-                         currencies=currencies)  # Przekazujemy waluty do szablonu
-
+                         currencies=currencies,
+                         today=datetime.now().strftime('%Y-%m-%d'))
+                         
 @app.route('/delete_expense/<int:expense_id>', methods=['POST'])
 @login_required
 def delete_expense(expense_id):
