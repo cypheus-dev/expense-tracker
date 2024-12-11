@@ -1,277 +1,194 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="space-y-6">
-    <!-- Filters Section -->
-    <div id="filters-section"></div>
-    
-    <!-- Expenses List -->
-    <div id="expenses-list"></div>
+
+<div class="card mb-3">
+    <div class="card-header">
+        <h5 class="mb-0">Filtry</h5>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <input type="hidden" name="sort" value="{{ current_sort }}">
+            {% if current_user.is_accountant %}
+            <div class="col-md-3">
+                <label class="form-label">Użytkownik</label>
+                <select name="user_id" class="form-control">
+                    <option value="">Wszyscy użytkownicy</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}" {% if filters.user_id == user.id %}selected{% endif %}>
+                        {{ user.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="col-md-3">
+                <label class="form-label">Data od</label>
+                <input type="date" name="date_from" class="form-control" value="{{ filters.date_from }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Data do</label>
+                <input type="date" name="date_to" class="form-control" value="{{ filters.date_to }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Kwota od</label>
+                <input type="number" step="0.01" name="amount_min" class="form-control" value="{{ filters.amount_min }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Kwota do</label>
+                <input type="number" step="0.01" name="amount_max" class="form-control" value="{{ filters.amount_max }}">
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary">Filtruj</button>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Wyczyść filtry</a>
+            </div>
+        </form>
+    </div>
 </div>
 
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            {% if current_user.is_accountant %}
+                Wszystkie wydatki
+            {% else %}
+                Moje wydatki
+            {% endif %}
+        </h5>
+        <div>
+            <a href="{{ url_for('add_expense') }}" class="btn btn-primary">Nowy wydatek</a>
+            {% if current_user.is_accountant %}
+                <a href="{{ url_for('export_expenses') }}" class="btn btn-success">Eksport do Excel</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>
+                            Data transakcji
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Sortowanie">
+                                <a href="{{ url_for('index', sort='desc', page=pagination.page) }}" 
+                                   class="btn btn-outline-secondary {{ 'active' if current_sort == 'desc' }}" 
+                                   title="Sortuj od najnowszych">
+                                    <i class="bi bi-sort-down"></i>
+                                </a>
+                                <a href="{{ url_for('index', sort='asc', page=pagination.page) }}" 
+                                   class="btn btn-outline-secondary {{ 'active' if current_sort == 'asc' }}" 
+                                   title="Sortuj od najstarszych">
+                                    <i class="bi bi-sort-up"></i>
+                                </a>
+                            </div>
+                        </th>
+                        <th>Kwota</th>
+                        <th>Karta</th>
+                        <th>Opis</th>
+                        {% if current_user.is_accountant %}
+                            <th>Użytkownik</th>
+                            <th>Status</th>
+                        {% endif %}
+                        <th>Faktura</th>
+                        <th>Akcje</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for expense in expenses %}
+                    <tr>
+                        <td>{{ expense.date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ expense.amount|format_currency(expense.currency) }}</td>
+                        <td>
+                            <span class="badge bg-secondary">
+                                {{ expense.card.name if expense.card else 'Brak karty' }}
+                            </span>
+                        </td>
+                        <td>{{ expense.description }}</td>
+                        {% if current_user.is_accountant %}
+                            <td>{{ expense.user.username }}</td>
+                            <td>
+                                <span class="badge bg-{{ expense.status_color }}">
+                                    {{ expense.status }}
+                                </span>
+                            </td>
+                        {% endif %}
+                        <td>
+                            {% if expense.receipt_filename %}
+                                <a href="{{ url_for('download_receipt', expense_id=expense.id) }}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-download"></i>
+                                </a>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if current_user.is_accountant or expense.user_id == current_user.id %}
+                                <a href="{{ url_for('edit_expense', expense_id=expense.id) }}" 
+                                   class="btn btn-sm btn-outline-secondary" 
+                                   title="Edytuj">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                            {% endif %}
+                            {% if current_user.is_admin or expense.user_id == current_user.id %}
+                                <button type="button" 
+                                        class="btn btn-sm btn-outline-danger" 
+                                        onclick="confirmDelete({{ expense.id }})" 
+                                        title="Usuń">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if pagination and pagination.pages > 1 %}
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+                <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                    <a class="page-link" 
+                       href="{{ url_for('index', page=pagination.prev_num, sort=current_sort) if pagination.has_prev else '#' }}">
+                        «
+                    </a>
+                </li>
+                {% for page in pagination.iter_pages() %}
+                    {% if page %}
+                        <li class="page-item {{ 'active' if page == pagination.page }}">
+                            <a class="page-link" href="{{ url_for('index', page=page, sort=current_sort) }}">
+                                {{ page }}
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                    <a class="page-link" 
+                       href="{{ url_for('index', page=pagination.next_num, sort=current_sort) if pagination.has_next else '#' }}">
+                        »
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+
+<form id="deleteForm" method="POST" style="display: none;">
+    {{ delete_form.csrf_token }}
+</form>
+
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Render Filters Card
-    ReactDOM.render(
-        React.createElement(window.ExpenseUI.ContentCard, {
-            title: "Filtry",
-            children: React.createElement('form', {
-                action: "{{ url_for('index') }}",
-                method: "GET",
-                className: "grid grid-cols-1 md:grid-cols-3 gap-4"
-            }, [
-                {% if current_user.is_accountant %}
-                React.createElement('div', { className: "form-group" }, [
-                    React.createElement('label', { 
-                        className: "form-label" 
-                    }, "Użytkownik"),
-                    React.createElement('select', {
-                        name: "user_id",
-                        className: "form-select",
-                        defaultValue: "{{ filters.user_id }}"
-                    }, [
-                        React.createElement('option', { value: "" }, "Wszyscy użytkownicy"),
-                        {% for user in users %}
-                        React.createElement('option', { 
-                            value: "{{ user.id }}"
-                        }, "{{ user.username }}"),
-                        {% endfor %}
-                    ])
-                ]),
-                {% endif %}
-                
-                React.createElement('div', { className: "form-group" }, [
-                    React.createElement('label', { 
-                        className: "form-label" 
-                    }, "Data od"),
-                    React.createElement('input', {
-                        type: "date",
-                        name: "date_from",
-                        className: "form-input",
-                        defaultValue: "{{ filters.date_from }}"
-                    })
-                ]),
-                
-                React.createElement('div', { className: "form-group" }, [
-                    React.createElement('label', { 
-                        className: "form-label" 
-                    }, "Data do"),
-                    React.createElement('input', {
-                        type: "date",
-                        name: "date_to",
-                        className: "form-input",
-                        defaultValue: "{{ filters.date_to }}"
-                    })
-                ]),
-                
-                React.createElement('div', { className: "form-group" }, [
-                    React.createElement('label', { 
-                        className: "form-label" 
-                    }, "Kwota od"),
-                    React.createElement('input', {
-                        type: "number",
-                        step: "0.01",
-                        name: "amount_min",
-                        className: "form-input",
-                        defaultValue: "{{ filters.amount_min }}"
-                    })
-                ]),
-                
-                React.createElement('div', { className: "form-group" }, [
-                    React.createElement('label', { 
-                        className: "form-label" 
-                    }, "Kwota do"),
-                    React.createElement('input', {
-                        type: "number",
-                        step: "0.01",
-                        name: "amount_max",
-                        className: "form-input",
-                        defaultValue: "{{ filters.amount_max }}"
-                    })
-                ]),
-                
-                React.createElement('div', { 
-                    className: "col-span-full flex gap-2" 
-                }, [
-                    React.createElement(window.ExpenseUI.IconButton, {
-                        type: "submit",
-                        label: "Filtruj",
-                        variant: "primary"
-                    }),
-                    React.createElement(window.ExpenseUI.IconButton, {
-                        label: "Wyczyść filtry",
-                        variant: "secondary",
-                        href: "{{ url_for('index') }}"
-                    })
-                ])
-            ])
-        }),
-        document.getElementById('filters-section')
-    );
-
-    // Render Expenses List
-    ReactDOM.render(
-        React.createElement(window.ExpenseUI.ContentCard, {
-            title: {% if current_user.is_accountant %}"Wszystkie wydatki"{% else %}"Moje wydatki"{% endif %},
-            action: React.createElement('div', { 
-                className: "flex gap-2" 
-            }, [
-                React.createElement(window.ExpenseUI.IconButton, {
-                    label: "Nowy wydatek",
-                    variant: "primary",
-                    href: "{{ url_for('add_expense') }}"
-                }),
-                {% if current_user.is_accountant %}
-                React.createElement(window.ExpenseUI.IconButton, {
-                    label: "Eksport do Excel",
-                    variant: "success",
-                    href: "{{ url_for('export_expenses') }}"
-                })
-                {% endif %}
-            ]),
-            children: [
-                React.createElement('div', { className: "mb-4" }, [
-                    React.createElement('div', { 
-                        className: "btn-group btn-group-sm",
-                        role: "group",
-                        'aria-label': "Sortowanie"
-                    }, [
-                        React.createElement('a', {
-                            href: "{{ url_for('index', sort='desc', page=pagination.page) }}",
-                            className: "btn btn-outline-secondary {{ 'active' if current_sort == 'desc' }}",
-                            title: "Sortuj od najnowszych"
-                        }, "↓"),
-                        React.createElement('a', {
-                            href: "{{ url_for('index', sort='asc', page=pagination.page) }}",
-                            className: "btn btn-outline-secondary {{ 'active' if current_sort == 'asc' }}",
-                            title: "Sortuj od najstarszych"
-                        }, "↑")
-                    ])
-                ]),
-                React.createElement(window.ExpenseUI.DataTable, {
-                    headers: [
-                        "Data transakcji",
-                        "Kwota",
-                        "Karta",
-                        "Opis",
-                        {% if current_user.is_accountant %}"Użytkownik", "Status",{% endif %}
-                        "Faktura",
-                        "Akcje"
-                    ],
-                    children: {% raw %}[{% endraw %}
-                        {% for expense in expenses %}
-                        React.createElement('tr', { key: {{ expense.id }} }, [
-                            React.createElement('td', {}, "{{ expense.date.strftime('%Y-%m-%d') }}"),
-                            React.createElement('td', {}, "{{ expense.amount|format_currency(expense.currency) }}"),
-                            React.createElement('td', {}, 
-                                React.createElement('span', { 
-                                    className: "badge bg-secondary" 
-                                }, "{{ expense.card.name if expense.card else 'Brak karty' }}")
-                            ),
-                            React.createElement('td', {}, "{{ expense.description }}"),
-                            {% if current_user.is_accountant %}
-                            React.createElement('td', {}, "{{ expense.user.username }}"),
-                            React.createElement('td', {}, 
-                                React.createElement('span', { 
-                                    className: "badge bg-{{ expense.status_color }}" 
-                                }, "{{ expense.status }}")
-                            ),
-                            {% endif %}
-                            React.createElement('td', {}, 
-                                {% if expense.receipt_filename %}
-                                React.createElement(window.ExpenseUI.IconButton, {
-                                    variant: "secondary",
-                                    size: "sm",
-                                    href: "{{ url_for('download_receipt', expense_id=expense.id) }}",
-                                    label: "Pobierz"
-                                })
-                                {% endif %}
-                            ),
-                            React.createElement('td', {}, 
-                                React.createElement('div', { className: "flex gap-2" }, [
-                                    {% if current_user.is_accountant or expense.user_id == current_user.id %}
-                                    React.createElement(window.ExpenseUI.IconButton, {
-                                        variant: "secondary",
-                                        size: "sm",
-                                        href: "{{ url_for('edit_expense', expense_id=expense.id) }}",
-                                        label: "Edytuj"
-                                    }),
-                                    {% endif %}
-                                    {% if current_user.is_admin or expense.user_id == current_user.id %}
-                                    React.createElement(window.ExpenseUI.IconButton, {
-                                        variant: "danger",
-                                        size: "sm",
-                                        onClick: () => deleteExpense({{ expense.id }}),
-                                        label: "Usuń"
-                                    })
-                                    {% endif %}
-                                ])
-                            )
-                        ]),
-                        {% endfor %}
-                    {% raw %}]{% endraw %}
-                }),
-                {% if pagination and pagination.pages > 1 %}
-                React.createElement('nav', { 
-                    className: "flex justify-center mt-4",
-                    'aria-label': "Paginacja"
-                }, 
-                    React.createElement('ul', { className: "pagination" }, [
-                        React.createElement('li', { 
-                            className: "page-item {{ 'disabled' if not pagination.has_prev }}"
-                        },
-                            React.createElement('a', {
-                                className: "page-link",
-                                href: "{{ url_for('index', page=pagination.prev_num, sort=current_sort) if pagination.has_prev else '#' }}"
-                            }, "«")
-                        ),
-                        {% for page in pagination.iter_pages() %}
-                            {% if page %}
-                            React.createElement('li', { 
-                                className: "page-item {{ 'active' if page == pagination.page }}"
-                            },
-                                React.createElement('a', {
-                                    className: "page-link",
-                                    href: "{{ url_for('index', page=page, sort=current_sort) }}"
-                                }, "{{ page }}")
-                            ),
-                            {% else %}
-                            React.createElement('li', { className: "page-item disabled" },
-                                React.createElement('span', { className: "page-link" }, "...")
-                            ),
-                            {% endif %}
-                        {% endfor %}
-                        React.createElement('li', { 
-                            className: "page-item {{ 'disabled' if not pagination.has_next }}"
-                        },
-                            React.createElement('a', {
-                                className: "page-link",
-                                href: "{{ url_for('index', page=pagination.next_num, sort=current_sort) if pagination.has_next else '#' }}"
-                            }, "»")
-                        )
-                    ])
-                )
-                {% endif %}
-            ]
-        }),
-        document.getElementById('expenses-list')
-    );
-});
-
-function deleteExpense(expenseId) {
+function confirmDelete(expenseId) {
     if (confirm('Czy na pewno chcesz usunąć ten wydatek?')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = "{{ url_for('delete_expense', expense_id='__id__') }}".replace('__id__', expenseId);
-        
-        const csrfInput = document.createElement('input');
-        csrfInput.type = 'hidden';
-        csrfInput.name = 'csrf_token';
-        csrfInput.value = "{{ delete_form.csrf_token._value() }}";
-        form.appendChild(csrfInput);
-        
-        document.body.appendChild(form);
+        const form = document.getElementById('deleteForm');
+        form.action = `/delete_expense/${expenseId}`;
         form.submit();
     }
 }
 </script>
+
 {% endblock %}

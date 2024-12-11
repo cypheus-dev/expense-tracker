@@ -1,221 +1,158 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="max-w-3xl mx-auto">
-    <div id="edit-expense-form"></div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Edytuj wydatek</h5>
+            </div>
+
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="amount" class="form-label">Kwota</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.01" class="form-control" id="amount" name="amount" value="{{ expense.amount }}" required>
+                                    <select class="form-select" id="currency" name="currency" style="max-width: 120px;">
+                                        {% for value, label in currencies %}
+                                        <option value="{{ value }}" {% if value == expense.currency %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="card_id" class="form-label">Karta płatnicza</label>
+                                <select class="form-select" id="card_id" name="card_id" required>
+                                    <option value="">Wybierz kartę...</option>
+                                    {% for card in cards %}
+                                    <option value="{{ card.id }}" {% if card.id == expense.card_id %}selected{% endif %}>
+                                        {{ card.name }} ({{ card.currency }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="date" class="form-label">Data transakcji</label>
+                        <input type="date" class="form-control" id="date" name="date" value="{{ expense.date.strftime('%Y-%m-%d') }}" required max="{{ today }}"  value="{{ expense.date.strftime('%Y-%m-%d') }}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Opis (do kogo płatność oraz za co np. nr faktury, nr rezerwacji, nr imprezy)</label>
+                        <textarea class="form-control" id="description" name="description" rows="3">{{ expense.description }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="receipt" class="form-label">Dodaj plik z fakturą</label>
+                        {% if expense.receipt_filename %}
+                        <div class="mb-2">
+                            <span class="text-muted">Obecny plik: </span>
+                            <a href="{{ url_for('download_receipt', expense_id=expense.id) }}">{{ expense.receipt_filename }}</a>
+                        </div>
+                        {% endif %}
+                        <input type="file" class="form-control" id="receipt" name="receipt">
+                        <div class="form-text">
+                            Akceptowane formaty: PDF, JPG, PNG. Max rozmiar: 5MB
+                            {% if expense.receipt_filename %}
+                            <br>Zostaw puste, aby zachować obecny plik.
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Anuluj</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    ReactDOM.render(
-        React.createElement(window.ExpenseUI.ContentCard, {
-            title: "Edytuj wydatek",
-            children: React.createElement('form', {
-                action: "{{ url_for('edit_expense', expense_id=expense.id) }}",
-                method: "POST",
-                enctype: "multipart/form-data",
-                className: "space-y-6"
-            }, [
-                // Sekcja kwoty i karty
-                React.createElement('div', {
-                    className: "grid grid-cols-1 md:grid-cols-2 gap-6"
-                }, [
-                    // Pole kwoty z wyborem waluty
-                    React.createElement('div', { className: "form-group" }, [
-                        React.createElement('label', {
-                            className: "form-label",
-                            htmlFor: "amount"
-                        }, "Kwota"),
-                        React.createElement('div', {
-                            className: "flex"
-                        }, [
-                            React.createElement('input', {
-                                type: "number",
-                                step: "0.01",
-                                name: "amount",
-                                id: "amount",
-                                required: true,
-                                className: "form-input flex-1 rounded-l-lg rounded-r-none",
-                                min: "0",
-                                defaultValue: "{{ '%.2f' % expense.amount }}"
-                            }),
-                            React.createElement('select', {
-                                name: "currency",
-                                className: "form-select rounded-r-lg rounded-l-none border-l-0 w-24",
-                                required: true,
-                                defaultValue: "{{ expense.currency }}"
-                            }, [
-                                {% for value, label in currencies %}
-                                React.createElement('option', {
-                                    value: "{{ value }}"
-                                }, "{{ label }}"),
-                                {% endfor %}
-                            ])
-                        ])
-                    ]),
-
-                    // Wybór karty płatniczej
-                    React.createElement('div', { className: "form-group" }, [
-                        React.createElement('label', {
-                            className: "form-label",
-                            htmlFor: "card_id"
-                        }, "Karta płatnicza"),
-                        React.createElement('select', {
-                            name: "card_id",
-                            id: "card_id",
-                            className: "form-select",
-                            required: true,
-                            defaultValue: "{{ expense.card_id }}",
-                            onChange: (e) => updateCurrencyFromCard(e.target.value)
-                        }, [
-                            React.createElement('option', {
-                                value: ""
-                            }, "Wybierz kartę..."),
-                            {% for card in cards %}
-                            React.createElement('option', {
-                                value: "{{ card.id }}",
-                                'data-currency': "{{ card.currency }}"
-                            }, "{{ card.name }} ({{ card.currency }})"),
-                            {% endfor %}
-                        ])
-                    ])
-                ]),
-
-                // Data transakcji
-                React.createElement('div', { className: "form-group" }, [
-                    React.createElement('label', {
-                        className: "form-label",
-                        htmlFor: "date"
-                    }, "Data transakcji"),
-                    React.createElement('input', {
-                        type: "date",
-                        name: "date",
-                        id: "date",
-                        required: true,
-                        className: "form-input",
-                        max: "{{ today }}",
-                        defaultValue: "{{ expense.date.strftime('%Y-%m-%d') }}"
-                    })
-                ]),
-
-                // Opis wydatku
-                React.createElement('div', { className: "form-group" }, [
-                    React.createElement('label', {
-                        className: "form-label",
-                        htmlFor: "description"
-                    }, "Opis (do kogo płatność oraz za co np. nr faktury, nr rezerwacji, nr imprezy)"),
-                    React.createElement('textarea', {
-                        name: "description",
-                        id: "description",
-                        required: true,
-                        className: "form-textarea",
-                        rows: "3",
-                        defaultValue: "{{ expense.description }}"
-                    })
-                ]),
-
-                // Załącznik faktury
-                React.createElement('div', { className: "form-group" }, [
-                    React.createElement('label', {
-                        className: "form-label",
-                        htmlFor: "receipt"
-                    }, "Faktura"),
-                    
-                    // Obecny plik (jeśli istnieje)
-                    {% if expense.receipt_filename %}
-                    React.createElement('div', {
-                        className: "mb-2 flex items-center gap-2"
-                    }, [
-                        React.createElement('span', {
-                            className: "text-sm text-gray-600"
-                        }, "Obecny plik: "),
-                        React.createElement(window.ExpenseUI.IconButton, {
-                            label: "{{ expense.receipt_filename }}",
-                            variant: "secondary",
-                            size: "sm",
-                            href: "{{ url_for('download_receipt', expense_id=expense.id) }}"
-                        })
-                    ]),
-                    {% endif %}
-
-                    // Input na nowy plik
-                    React.createElement('input', {
-                        type: "file",
-                        name: "receipt",
-                        id: "receipt",
-                        className: "form-input",
-                        accept: ".pdf,.jpg,.jpeg,.png"
-                    }),
-                    React.createElement('p', {
-                        className: "text-sm text-gray-500 mt-1"
-                    }, [
-                        "Akceptowane formaty: PDF, JPG, PNG. Max rozmiar: 5MB",
-                        {% if expense.receipt_filename %}
-                        React.createElement('br'),
-                        "Zostaw puste, aby zachować obecny plik."
-                        {% endif %}
-                    ])
-                ]),
-
-                // Przyciski akcji
-                React.createElement('div', {
-                    className: "flex gap-2"
-                }, [
-                    React.createElement(window.ExpenseUI.IconButton, {
-                        type: "submit",
-                        label: "Zapisz zmiany",
-                        variant: "primary"
-                    }),
-                    React.createElement(window.ExpenseUI.IconButton, {
-                        label: "Anuluj",
-                        variant: "secondary",
-                        href: "{{ url_for('index') }}"
-                    })
-                ])
-            ])
-        }),
-        document.getElementById('edit-expense-form')
-    );
+// Aktualizacja waluty na podstawie wybranej karty
+document.getElementById('card_id').addEventListener('change', function() {
+    const cardId = this.value;
+    if (cardId) {
+        fetch(`/get_card_currency/${cardId}`)
+            .then(response => response.json())
+            .then(data => {
+                const currencySelect = document.getElementById('currency');
+                for (let i = 0; i < currencySelect.options.length; i++) {
+                    if (currencySelect.options[i].value === data.currency) {
+                        currencySelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
 });
 
-// Funkcja aktualizująca walutę na podstawie wybranej karty
-function updateCurrencyFromCard(cardId) {
-    if (!cardId) return;
-    const cardOption = document.querySelector(`option[value="${cardId}"]`);
-    if (!cardOption) return;
+// Walidacja formularza
+document.querySelector('form').addEventListener('submit', function(event) {
+    const amount = document.getElementById('amount').value;
+    const category = document.getElementById('category').value;
+    const date = document.getElementById('date').value;
+    const card = document.getElementById('card_id').value;
     
-    const currency = cardOption.getAttribute('data-currency');
-    if (currency) {
-        const currencySelect = document.querySelector('select[name="currency"]');
-        if (currencySelect) {
-            currencySelect.value = currency;
+    let isValid = true;
+    let errorMessage = '';
+    
+    // Sprawdzenie kwoty
+    if (!amount || parseFloat(amount) <= 0) {
+        errorMessage += 'Kwota musi być większa od 0\n';
+        isValid = false;
+    }
+    
+    // Sprawdzenie kategorii
+    if (!category) {
+        errorMessage += 'Wybierz kategorię\n';
+        isValid = false;
+    }
+    
+    // Sprawdzenie daty
+    if (!date) {
+        errorMessage += 'Wybierz datę\n';
+        isValid = false;
+    }
+    
+    // Sprawdzenie karty
+    if (!card) {
+        errorMessage += 'Wybierz kartę płatniczą\n';
+        isValid = false;
+    }
+    
+    // Sprawdzenie pliku
+    const fileInput = document.getElementById('receipt');
+    if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        if (file.size > 5 * 1024 * 1024) { // 5MB
+            errorMessage += 'Plik jest za duży (maksymalnie 5MB)\n';
+            isValid = false;
+        }
+        
+        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+        if (!allowedTypes.includes(file.type)) {
+            errorMessage += 'Niedozwolony format pliku (dozwolone: PDF, JPG, PNG)\n';
+            isValid = false;
         }
     }
-}
-
-// Walidacja przed wysłaniem
-document.addEventListener('submit', function(e) {
-    if (e.target.querySelector('#receipt')) {
-        const fileInput = e.target.querySelector('#receipt');
-        if (fileInput.files.length > 0) {
-            const file = fileInput.files[0];
-            if (file.size > 5 * 1024 * 1024) { // 5MB
-                e.preventDefault();
-                alert('Plik jest za duży. Maksymalny rozmiar to 5MB.');
-                return;
-            }
-        }
-    }
-
-    const dateInput = e.target.querySelector('#date');
-    if (dateInput) {
-        const selectedDate = new Date(dateInput.value);
-        const today = new Date();
-        if (selectedDate > today) {
-            e.preventDefault();
-            alert('Data nie może być z przyszłości.');
-            return;
-        }
+    
+    if (!isValid) {
+        event.preventDefault();
+        alert(errorMessage);
     }
 });
 </script>
+
 {% endblock %}
