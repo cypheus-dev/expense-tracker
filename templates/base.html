@@ -10,6 +10,8 @@
        <!-- Własne style -->
        <link href="{{ url_for('static', filename='css/tailwind-custom.css') }}" 
              rel="stylesheet">
+	   <!-- Meta tag z tokenem CSRF -->
+	    <meta name="csrf-token" content="{{ csrf_token() }}">
 
        <!-- React (najpierw) -->
        <script src="https://cdn.jsdelivr.net/npm/react@17/umd/react.production.min.js" 
