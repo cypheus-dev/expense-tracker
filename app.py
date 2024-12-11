@@ -63,6 +63,21 @@ class EditExpenseForm(FlaskForm):
     card_id = SelectField('Card', coerce=int)
     date = DateField('Date', validators=[DataRequired()])
     description = TextAreaField('Description', validators=[DataRequired()])
+    
+class UserForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    role = SelectField('Role', choices=[
+        ('user', 'Użytkownik'),
+        ('accountant', 'Księgowy'),
+        ('admin', 'Administrator')
+    ], validators=[DataRequired()])
+
+class CardForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired()])
+    currency = SelectField('Currency', validators=[DataRequired()])
+    description = StringField('Description')
+    is_default = BooleanField('Default')
 
 # Definicja formularza dla CSRF
 class DeleteForm(FlaskForm):
@@ -558,11 +573,18 @@ def config():
         flash('Brak dostępu', 'danger')
         return redirect(url_for('index'))
     
+    # Inicjalizacja formularzy
+    card_form = CardForm()
+    user_form = UserForm()
+    
+    # Ustawienie opcji dla formularza karty
+    card_form.currency.choices = Currency.choices()
+    
     if request.method == 'POST':
-        if 'add_user' in request.form:
-            username = request.form.get('username')
-            password = request.form.get('password')
-            role = request.form.get('role', 'user')
+        if 'add_user' in request.form and user_form.validate_on_submit():
+            username = user_form.username.data
+            password = user_form.password.data
+            role = user_form.role.data
             
             if User.query.filter_by(username=username).first():
                 flash('Użytkownik o takiej nazwie już istnieje', 'danger')
@@ -583,9 +605,11 @@ def config():
     cards = PaymentCard.query.all()
     users = User.query.all()
     return render_template('config.html', 
+                         form=card_form,  # Ten formularz obsługuje zarówno dodawanie jak i edycję kart
+                         user_form=user_form,  # Formularz dla użytkowników
                          cards=cards,  
                          users=users)
-
+                         
 @app.route('/update_user/<int:user_id>', methods=['POST'])
 @login_required
 def update_user(user_id):
@@ -636,32 +660,36 @@ def add_card():
     if not current_user.is_admin:
         return jsonify({'error': 'Brak uprawnień'}), 403
     
-    name = request.form.get('name')
-    currency = request.form.get('currency')
-    description = request.form.get('description')
-    is_default = 'is_default' in request.form
+    form = CardForm()
+    form.currency.choices = Currency.choices()
     
-    if is_default:
-        # Reset other default cards
-        PaymentCard.query.filter_by(is_default=True).update({'is_default': False})
-    
-    card = PaymentCard(
-        name=name,
-        currency=currency,
-        description=description,
-        is_default=is_default,
-        is_active=True
-    )
-    db.session.add(card)
-    
-    try:
-        db.session.commit()
-        flash('Karta została dodana', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Wystąpił błąd podczas dodawania karty: {str(e)}', 'danger')
-    
-    return redirect(url_for('config'))
+    if form.validate_on_submit():
+        if form.is_default.data:
+            # Reset other default cards
+            PaymentCard.query.filter_by(is_default=True).update({'is_default': False})
+        
+        card = PaymentCard(
+            name=form.name.data,
+            currency=form.currency.data,
+            description=form.description.data,
+            is_default=form.is_default.data,
+            is_active=True
+        )
+        db.session.add(card)
+        
+        try:
+            db.session.commit()
+            flash('Karta została dodana', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Wystąpił błąd podczas dodawania karty: {str(e)}', 'danger')
+        
+        return redirect(url_for('config'))
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f'Błąd w polu {field}: {error}', 'danger')
+        return redirect(url_for('config'))
 
 @app.route('/config/card/<int:card_id>', methods=['POST', 'DELETE'])
 @login_required

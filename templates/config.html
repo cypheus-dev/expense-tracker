@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
 <div class="row mb-4">
     <!-- Zarządzanie użytkownikami -->
     <div class="col-md-12 mb-4">
@@ -121,16 +123,14 @@
             </div>
         </div>
     </div>
-
-    <!-- Kategorie wydatków -->
-    
-    </div>
 </div>
+
 <!-- Modal dodawania użytkownika -->
 <div class="modal fade" id="addUserModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="POST" action="{{ url_for('add_user') }}">
+                {{ form.csrf_token }}
                 <div class="modal-header">
                     <h5 class="modal-title">Dodaj użytkownika</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -203,6 +203,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="POST" action="{{ url_for('add_card') }}">
+                {{ form.csrf_token }}
                 <div class="modal-header">
                     <h5 class="modal-title">Dodaj kartę płatniczą</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -303,7 +304,8 @@ function updateUser() {
     fetch(`/update_user/${userId}`, {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
         },
         body: JSON.stringify(data)
     })
@@ -324,7 +326,11 @@ function updateUser() {
 function deleteUser(userId) {
     if (confirm('Czy na pewno chcesz usunąć tego użytkownika?')) {
         fetch(`/delete_user/${userId}`, {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            }
         })
         .then(response => response.json())
         .then(data => {
@@ -362,7 +368,8 @@ function updateCard() {
     fetch(`/config/card/${id}`, {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
         },
         body: JSON.stringify(data)
     })
@@ -388,7 +395,8 @@ function deleteCard(id) {
         fetch(`/config/card/${id}`, {
             method: 'DELETE',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
             }
         })
         .then(response => {
@@ -429,7 +437,8 @@ function updateCategory() {
     fetch(`/config/category/${id}`, {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
         },
         body: JSON.stringify(data)
     })
@@ -455,7 +464,8 @@ function deleteCategory(id) {
         fetch(`/config/category/${id}`, {
             method: 'DELETE',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
             }
         })
         .then(response => response.json())
