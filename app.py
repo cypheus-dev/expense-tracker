@@ -216,6 +216,9 @@ def index():
     per_page = 50  # Zwiększamy ilość wydatków na stronę ze względu na grupowanie
     sort_direction = request.args.get('sort', 'desc')  # domyślnie sortowanie malejąco
     
+    # Inicjalizacja podstawowego zapytania
+    query = Expense.query  # Przeniesione tutaj - przed warunkiem if
+    
     # Nowe parametry filtrowania
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
@@ -228,8 +231,6 @@ def index():
     
     # Przygotowanie zapytania bazowego
     if current_user.is_accountant:
-        query = Expense.query
-        # Add user filter only if specified and user is accountant
         if user_id:
             query = query.filter_by(user_id=user_id)
     else:
