@@ -649,10 +649,13 @@ def delete_user(user_id):
     if user.expenses:
         return jsonify({'error': 'Nie można usunąć użytkownika, który ma wydatki'}), 400
     
-    db.session.delete(user)
-    db.session.commit()
-    
-    return jsonify({'message': 'Użytkownik został usunięty'})
+    try:
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({'message': 'Użytkownik został usunięty'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Wystąpił błąd podczas usuwania użytkownika: {str(e)}'}), 400
 	
 @app.route('/config/card', methods=['POST'])
 @login_required
