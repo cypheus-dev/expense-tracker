@@ -1,138 +1,224 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="bi bi-cash"></i> Suma PLN
-                </h5>
-                <h2 class="text-primary">{{ "%.2f" % total_by_currency.get('PLN', 0) }} zł</h2>
-                <p class="text-muted">W tym miesiącu</p>
-            </div>
-        </div>
+<div class="space-y-6">
+    <!-- Stats Row -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div id="stats-pln"></div>
+        <div id="stats-eur"></div>
+        <div id="stats-count"></div>
+        <div id="stats-pending"></div>
     </div>
-    <div class="col-md-3">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="bi bi-cash"></i> Suma EUR
-                </h5>
-                <h2 class="text-info">{{ "%.2f" % total_by_currency.get('EUR', 0) }} €</h2>
-                <p class="text-muted">W tym miesiącu</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="bi bi-receipt"></i> Liczba wydatków
-                </h5>
-                <h2 class="text-success">{{ expense_count }}</h2>
-                <p class="text-muted">W tym miesiącu</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="bi bi-clock"></i> Do zatwierdzenia
-                </h5>
-                <h2 class="text-warning">{{ pending_count }}</h2>
-                <p class="text-muted">Oczekujące wydatki</p>
-            </div>
-        </div>
-    </div>
-</div>
 
-<div class="row">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Wydatki w czasie</h5>
-            </div>
-            <div class="card-body">
-                <canvas id="timelineChart"></canvas>
-            </div>
-        </div>
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div id="expenses-by-category"></div>
+        <div id="expenses-timeline"></div>
     </div>
+
+    <!-- Expense Details Section -->
+    <div id="expense-details"></div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Prepare data for category chart
-    const categoryData = {
-        labels: {{ categories|map(attribute=0)|list|tojson }},
-        datasets: [
-            {
-                label: 'PLN',
-                data: {{ categories|selectattr(1, 'equalto', 'PLN')|map(attribute=2)|list|tojson }},
-                backgroundColor: '#FF6384'
-            },
-            {
-                label: 'EUR',
-                data: {{ categories|selectattr(1, 'equalto', 'EUR')|map(attribute=2)|list|tojson }},
-                backgroundColor: '#36A2EB'
-            }
-        ]
-    };
+    // Stats Cards
+    ReactDOM.render(
+        React.createElement(window.ExpenseUI.StatCard, {
+            title: "Suma PLN",
+            value: "{{ '%.2f' % total_by_currency.get('PLN', 0) }} zł",
+            subtitle: "W tym miesiącu",
+            color: "primary"
+        }),
+        document.getElementById('stats-pln')
+    );
 
-    new Chart(document.getElementById('categoryChart'), {
-        type: 'bar',
-        data: categoryData,
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            },
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                }
-            }
-        }
-    });
+    ReactDOM.render(
+        React.createElement(window.ExpenseUI.StatCard, {
+            title: "Suma EUR",
+            value: "{{ '%.2f' % total_by_currency.get('EUR', 0) }} €",
+            subtitle: "W tym miesiącu",
+            color: "info"
+        }),
+        document.getElementById('stats-eur')
+    );
 
-    // Prepare data for timeline chart
-    const timelineData = {
-        labels: {{ timeline|map(attribute=0)|list|tojson }},
-        datasets: [
-            {
-                label: 'PLN',
-                data: {{ timeline|selectattr(1, 'equalto', 'PLN')|map(attribute=2)|list|tojson }},
-                borderColor: '#FF6384',
-                tension: 0.1
-            },
-            {
-                label: 'EUR',
-                data: {{ timeline|selectattr(1, 'equalto', 'EUR')|map(attribute=2)|list|tojson }},
-                borderColor: '#36A2EB',
-                tension: 0.1
-            }
-        ]
-    };
+    ReactDOM.render(
+        React.createElement(window.ExpenseUI.StatCard, {
+            title: "Liczba wydatków",
+            value: "{{ expense_count }}",
+            subtitle: "W tym miesiącu",
+            color: "success"
+        }),
+        document.getElementById('stats-count')
+    );
 
-    new Chart(document.getElementById('timelineChart'), {
-        type: 'line',
-        data: timelineData,
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            },
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                }
-            }
-        }
-    });
+    ReactDOM.render(
+        React.createElement(window.ExpenseUI.StatCard, {
+            title: "Do zatwierdzenia",
+            value: "{{ pending_count }}",
+            subtitle: "Oczekujące wydatki",
+            color: "warning"
+        }),
+        document.getElementById('stats-pending')
+    );
+
+    // Category Chart with Data
+    const categoryData = [
+        {% for category, amount in categories_data %}
+        {
+            name: "{{ category }}",
+            value: {{ amount }},
+            currency: "{{ currency }}"
+        },
+        {% endfor %}
+    ];
+
+    ReactDOM.render(
+        React.createElement(window.ExpenseUI.ContentCard, {
+            title: "Wydatki według kategorii",
+            children: React.createElement('div', {
+                id: 'category-chart',
+                className: 'h-96'
+            })
+        }),
+        document.getElementById('expenses-by-category')
+    );
+
+    // Timeline Data
+    const timelineData = [
+        {% for date, data in timeline %}
+        {
+            date: "{{ date }}",
+            {% for currency, amount in data.items() %}
+            {{ currency }}: {{ amount }},
+            {% endfor %}
+        },
+        {% endfor %}
+    ];
+
+    ReactDOM.render(
+        React.createElement(window.ExpenseUI.ContentCard, {
+            title: "Wydatki w czasie",
+            children: React.createElement('div', {
+                id: 'timeline-chart',
+                className: 'h-96'
+            })
+        }),
+        document.getElementById('expenses-timeline')
+    );
+
+    // Expense Details Table
+    ReactDOM.render(
+        React.createElement(window.ExpenseUI.ContentCard, {
+            title: "Szczegóły wydatków",
+            action: React.createElement(window.ExpenseUI.IconButton, {
+                label: "Eksportuj do Excel",
+                variant: "success",
+                href: "{{ url_for('export_expenses') }}"
+            }),
+            children: React.createElement(window.ExpenseUI.DataTable, {
+                headers: [
+                    "Data",
+                    "Użytkownik",
+                    "Kwota",
+                    "Waluta",
+                    "Status",
+                    "Akcje"
+                ],
+                children: [
+                    {% for expense in expenses %}
+                    React.createElement('tr', { key: {{ expense.id }} }, [
+                        React.createElement('td', {}, "{{ expense.date.strftime('%Y-%m-%d') }}"),
+                        React.createElement('td', {}, "{{ expense.user.username }}"),
+                        React.createElement('td', {}, "{{ '%.2f'|format(expense.amount) }}"),
+                        React.createElement('td', {}, "{{ expense.currency }}"),
+                        React.createElement('td', {}, 
+                            React.createElement('span', {
+                                className: 'badge bg-{{ expense.status_color }}'
+                            }, "{{ expense.status }}")
+                        ),
+                        React.createElement('td', {}, 
+                            React.createElement('div', { className: 'flex gap-2' }, [
+                                {% if current_user.is_accountant %}
+                                React.createElement(window.ExpenseUI.IconButton, {
+                                    label: "Zatwierdź",
+                                    variant: "success",
+                                    size: "sm",
+                                    onClick: () => approveExpense({{ expense.id }})
+                                }),
+                                React.createElement(window.ExpenseUI.IconButton, {
+                                    label: "Odrzuć",
+                                    variant: "danger",
+                                    size: "sm",
+                                    onClick: () => rejectExpense({{ expense.id }})
+                                }),
+                                {% endif %}
+                                {% if expense.receipt_filename %}
+                                React.createElement(window.ExpenseUI.IconButton, {
+                                    label: "Pobierz fakturę",
+                                    variant: "secondary",
+                                    size: "sm",
+                                    href: "{{ url_for('download_receipt', expense_id=expense.id) }}"
+                                })
+                                {% endif %}
+                            ])
+                        )
+                    ]),
+                    {% endfor %}
+                ]
+            })
+        }),
+        document.getElementById('expense-details')
+    );
+
+    // Initialize Charts
+    initializeCategoryChart();
+    initializeTimelineChart();
 });
+
+function initializeCategoryChart() {
+    // Tu implementacja wykresu kategorii (można użyć Chart.js lub innej biblioteki)
+    const ctx = document.getElementById('category-chart').getContext('2d');
+    // Implementacja wykresu...
+}
+
+function initializeTimelineChart() {
+    // Tu implementacja wykresu czasowego
+    const ctx = document.getElementById('timeline-chart').getContext('2d');
+    // Implementacja wykresu...
+}
+
+function approveExpense(expenseId) {
+    // Implementacja zatwierdzania wydatku
+    fetch(`/approve_expense/${expenseId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        }
+    }).then(response => {
+        if (response.ok) {
+            window.location.reload();
+        }
+    });
+}
+
+function rejectExpense(expenseId) {
+    // Implementacja odrzucania wydatku
+    fetch(`/reject_expense/${expenseId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        }
+    }).then(response => {
+        if (response.ok) {
+            window.location.reload();
+        }
+    });
+}
 </script>
+
+<!-- Dodajemy potrzebne biblioteki do wykresów -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {% endblock %}
