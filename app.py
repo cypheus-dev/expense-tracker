@@ -7,6 +7,8 @@ from io import BytesIO
 from enum import Enum
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect  # Dodaj ten import na górze pliku
+from wtforms import StringField, PasswordField
+from wtforms.validators import DataRequired
 import xlsxwriter
 import os
 import locale
@@ -43,6 +45,10 @@ login_manager.login_view = 'login'
 
 # Tutaj dodajemy CSRF Protection
 csrf = CSRFProtect(app)
+
+class LoginForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])
 
 # Definicja formularza dla CSRF
 class DeleteForm(FlaskForm):
@@ -275,13 +281,15 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        user = User.query.filter_by(username=request.form['username']).first()
-        if user and check_password_hash(user.password_hash, request.form['password']):
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and check_password_hash(user.password_hash, form.password.data):
             login_user(user)
-            return redirect(url_for('index'))
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('index'))
         flash('Nieprawidłowe dane logowania', 'danger')
-    return render_template('login.html')
+    return render_template('login.html', form=form)
 
 @app.route('/logout')
 @login_required
