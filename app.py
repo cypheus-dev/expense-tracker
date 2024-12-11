@@ -396,7 +396,7 @@ def add_expense():
                 flash(f'Wystąpił błąd: {str(e)}', 'danger')
                 return redirect(request.url)
     
-        return render_template('add_expense.html', 
+    return render_template('add_expense.html', 
                              form=form,
                              cards=cards,
                              default_card=default_card,
