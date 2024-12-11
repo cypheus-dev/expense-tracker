@@ -261,8 +261,7 @@ function deleteExpense(expenseId) {
     if (confirm('Czy na pewno chcesz usunąć ten wydatek?')) {
         const form = document.createElement('form');
         form.method = 'POST';
-        // Konstruujemy URL bezpośrednio
-        form.action = `/delete_expense/${expenseId}`;
+        form.action = "{{ url_for('delete_expense', expense_id='__id__') }}".replace('__id__', expenseId);
         
         const csrfInput = document.createElement('input');
         csrfInput.type = 'hidden';
